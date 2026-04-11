@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dc: [dmd-latest, ldc-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup D
+      uses: dlang-community/setup-dlang@v1
+      with:
+        compiler: ${{ matrix.dc }}
+
+    - name: Verify versions
+      run: |
+        ${{ env.DC }} --version
+        dub --version
+
+    - name: Build
+      run: dub build
+
+    - name: Run tests
+      run: dub test
