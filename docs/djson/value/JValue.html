@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
+		<title>Struct JValue</title>
+		<link rel="stylesheet" href="../../css/style.min.css"/>
+		<script type="text/javascript" src="../../js/script.min.js"></script>
+	</head>
+	<body onload="setupDdox();">
+		<header></header>
+		<nav id="main-nav">
+			<div>
+				<noscript>
+					<p style="color: red">The search functionality needs JavaScript enabled</p>
+				</noscript>
+				<div id="symbolSearchPane" style="display: none">
+					<form action="#" method="GET">
+						<input id="symbolSearch" type="text" name="q" placeholder="Search for symbols" autocomplete="off" onchange="performSymbolSearch(24);" onkeypress="this.onchange();" onpaste="this.onchange();" oninput="this.onchange();" autofocus/>
+					</form>
+					<ul id="symbolSearchResults" class="symbolList" style="display: none"></ul><script type="application/javascript" src="../../symbols.js"></script><script type="application/javascript">var symbolSearchRootDir = "../../";
+document.getElementById('symbolSearchPane').style.display = 'block';</script>
+				</div>
+				<ul class="tree-view">
+					<li class="tree-view ">
+						<div class="package ">
+							<a href="../../djson.html">djson</a>
+						</div>
+				<ul class="tree-view">
+					<li>
+						<div class="module ">
+							<a href="../../djson/parser.html">parser</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/tests.html">tests</a>
+						</div>
+					</li>
+					<li>
+						<div class="module selected">
+							<a href="../../djson/value.html">value</a>
+						</div>
+					</li>
+				</ul>
+					</li>
+				</ul>
+			</div>
+			<p id="main-nav-footer">
+				Built with<a href="https://github.com/MartinNowak/scod">scod</a>
+			</p>
+		</nav>
+		<div id="main-contents">
+			<div>
+				<h1>Struct JValue</h1><p>Represents a single JSON value.
+     Uses a union to store different types efficiently and supports lazy evaluation.
+</p>
+				<div class="prototype">
+					<code class="lang-d">
+						<div class="single-prototype">
+				<span class="kwd">struct</span> <span class="typ">JValue</span><span class="pun">;</span>
+						</div>
+					</code>
+				</div>
+				
+				<section><h2>Constructors</h2>
+					<table>
+						<col class="caption"/>
+						<tr>
+							<th>Name</th><th>Description</th>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.this.html" class="public">
+									<code>this</code>
+								</a>
+								<span class="tableEntryAnnotation">(__param_0)</span>
+							</td>
+							<td>Construct a JSON null value.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.this.html" class="public">
+									<code>this</code>
+								</a>
+								<span class="tableEntryAnnotation">(b)</span>
+							</td>
+							<td>Construct a JSON boolean value.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.this.html" class="public">
+									<code>this</code>
+								</a>
+								<span class="tableEntryAnnotation">(d)</span>
+							</td>
+							<td>Construct a JSON numeric value.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.this.html" class="public">
+									<code>this</code>
+								</a>
+								<span class="tableEntryAnnotation">(d)</span>
+							</td>
+							<td>Construct a JSON numeric value from long.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.this.html" class="public">
+									<code>this</code>
+								</a>
+								<span class="tableEntryAnnotation">(d)</span>
+							</td>
+							<td>Construct a JSON numeric value from int.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.this.html" class="public">
+									<code>this</code>
+								</a>
+								<span class="tableEntryAnnotation">(s)</span>
+							</td>
+							<td>Construct a JSON string value.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.this.html" class="public">
+									<code>this</code>
+								</a>
+								<span class="tableEntryAnnotation">(o)</span>
+							</td>
+							<td>Construct a JSON object.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.this.html" class="public">
+									<code>this</code>
+								</a>
+								<span class="tableEntryAnnotation">(a)</span>
+							</td>
+							<td>Construct a JSON array.
+</td>
+						</tr>
+					</table>
+				</section>
+				<section><h2>Fields</h2>
+					<table>
+						<col class="caption"/>
+						<tr>
+							<th>Name</th><th>Type</th><th>Description</th>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.arr.html" class="public"><code>arr</code></a>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><a href="../../djson/value/JArray.html"><span class="typ">JArray</span></a></code></td><td>Container if type is JType.Array
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.boolean.html" class="public"><code>boolean</code></a>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><span class="typ">bool</span></code></td><td>Value if type is JType.Bool
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.number.html" class="public"><code>number</code></a>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><span class="typ">double</span></code></td><td>Value if type is JType.Number
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.obj.html" class="public"><code>obj</code></a>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><a href="../../djson/value/JObject.html"><span class="typ">JObject</span></a></code></td><td>Container if type is JType.Object
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.str.html" class="public"><code>str</code></a>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><span class="typ">string</span></code></td><td>Value if type is JType.String
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.type.html" class="public"><code>type</code></a>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><a href="../../djson/value/JType.html"><span class="typ">JType</span></a></code></td><td>Current type of the node
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.unparsed.html" class="public"><code>unparsed</code></a>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><span class="pln">djson<wbr/></span><span class="pun">.</span><span class="pln">value<wbr/></span><span class="pun">.</span><span class="typ">JValue<wbr/></span><span class="pun">.</span><span class="typ">UnparsedData</span></code></td><td>Raw JSON string if type is JType.Unparsed
+</td>
+						</tr>
+					</table>
+				</section>
+				<section><h2>Properties</h2>
+					<table>
+						<col class="caption"/>
+						<tr>
+							<th>Name</th><th>Type</th><th>Description</th>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.isNull.html" class="public property"><code>isNull</code></a><span class="tableEntryAnnotation">[get]</span>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><span class="typ">bool</span></code></td><td>Returns true if this value represents JSON null.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.length.html" class="public property"><code>length</code></a><span class="tableEntryAnnotation">[get]</span>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><span class="typ">ulong</span></code></td><td>Returns the number of elements in a JSON array or fields in a JSON object.
+         Returns 0 for all other types.
+</td>
+						</tr>
+					</table>
+				</section>
+				<section><h2>Methods</h2>
+					<table>
+						<col class="caption"/>
+						<tr>
+							<th>Name</th><th>Description</th>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.appendData.html" class="public">
+									<code>appendData</code>
+								</a>
+								<span class="tableEntryAnnotation">(moreData)</span>
+							</td>
+							<td>Appends additional JSON data to handle partial stream parsing.
+         This safely allows resuming parsing by updating all unresolved
+         lazy portions of the JSON tree with the provided string.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.evaluateSelf.html" class="public">
+									<code>evaluateSelf</code>
+								</a>
+								<span class="tableEntryAnnotation">()</span>
+							</td>
+							<td>Evaluates current node if it is currently in Unparsed (lazy) state.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.get.html" class="public">
+									<code>get</code>
+								</a>
+								<span class="tableEntryAnnotation">(args)</span>
+							</td>
+							<td>Fluent access to nested values via variadic arguments or JSON pointer paths.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.get.html" class="public">
+									<code>get</code>
+								</a>
+								<span class="tableEntryAnnotation">()</span>
+							</td>
+							<td>Returns the current node cast to type T.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.getPtr.html" class="public">
+									<code>getPtr</code>
+								</a>
+								<span class="tableEntryAnnotation">(key)</span>
+							</td>
+							<td>Returns a pointer to a value in an object by its key.
+         Returns null if not found or if the node is not an object.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.getPtr.html" class="public">
+									<code>getPtr</code>
+								</a>
+								<span class="tableEntryAnnotation">(index)</span>
+							</td>
+							<td>Returns a pointer to an element in an array by its index.
+         Returns null if out of bounds or if the node is not an array.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.has.html" class="public">
+									<code>has</code>
+								</a>
+								<span class="tableEntryAnnotation">(args)</span>
+							</td>
+							<td>Check if a specific key, index, or nested path exists.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.mkUnparsed.html" class="public">
+									<code>mkUnparsed</code>
+								</a>
+								<span class="tableEntryAnnotation">(s)</span>
+							</td>
+							<td>Internal helper to create a lazy node that will be parsed on demand.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.opApply.html" class="public">
+									<code>opApply</code>
+								</a>
+								<span class="tableEntryAnnotation">(dg)</span>
+							</td>
+							<td>Enables foreach iteration over array elements or object values.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.opApply.html" class="public">
+									<code>opApply</code>
+								</a>
+								<span class="tableEntryAnnotation">(dg)</span>
+							</td>
+							<td>Enables foreach iteration over array elements with index.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.opApply.html" class="public">
+									<code>opApply</code>
+								</a>
+								<span class="tableEntryAnnotation">(dg)</span>
+							</td>
+							<td>Enables foreach iteration over object key-value pairs in insertion order.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.opIndex.html" class="public">
+									<code>opIndex</code>
+								</a>
+								<span class="tableEntryAnnotation">(index)</span>
+							</td>
+							<td>Array-like access to array elements.
+         Throws JSONException if index is out of bounds.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.opIndex.html" class="public">
+									<code>opIndex</code>
+								</a>
+								<span class="tableEntryAnnotation">(key)</span>
+							</td>
+							<td>Array-like access to object fields.
+         Throws JSONException if key is not found.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.opIndexAssign.html" class="public">
+									<code>opIndexAssign</code>
+								</a>
+								<span class="tableEntryAnnotation">(value, key)</span>
+							</td>
+							<td>Mutation via operator [] for objects.
+         Converts a Null node to an Object if necessary.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.opIndexAssign.html" class="public">
+									<code>opIndexAssign</code>
+								</a>
+								<span class="tableEntryAnnotation">(value, index)</span>
+							</td>
+							<td>Mutation via operator [] for arrays.
+         Converts a Null node to an Array if necessary.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.parseAll.html" class="public">
+									<code>parseAll</code>
+								</a>
+								<span class="tableEntryAnnotation">()</span>
+							</td>
+							<td>Recursively evaluates all nested nodes.
+         After this call, the entire structure is fully parsed and no longer lazy.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.remove.html" class="public">
+									<code>remove</code>
+								</a>
+								<span class="tableEntryAnnotation">(key)</span>
+							</td>
+							<td>Remove a key from a JSON object.
+         Does nothing and returns false if the node is not an object or the key is not found.
+         Returns true if the key was successfully removed.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.remove.html" class="public">
+									<code>remove</code>
+								</a>
+								<span class="tableEntryAnnotation">(index)</span>
+							</td>
+							<td>Remove an element from a JSON array by its index.
+         Does nothing and returns false if the node is not an array or the index is out of bounds.
+         Returns true if the element was successfully removed.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.safe.html" class="public">
+									<code>safe</code>
+								</a>
+								<span class="tableEntryAnnotation">(args)</span>
+							</td>
+							<td>Safe version of <code class="lang-d"><wbr/><span class="pun">.</span><span class="pln">get</span><span class="pun">!</span><span class="pln">T</span><span class="pun">()</span></code> that returns a <code class="lang-d"><a href="../../djson/value/SafeResult.html"><span class="typ">SafeResult</span></a><span class="pun">!</span><span class="pln">T</span></code> instead of throwing.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.set.html" class="public">
+									<code>set</code>
+								</a>
+								<span class="tableEntryAnnotation">(value, args)</span>
+							</td>
+							<td>Sets a value at a nested path using variadic keys/indices or a JSON pointer.
+         Automatically creates (auto-vivifies) intermediate objects and arrays.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.toJSON.html" class="public">
+									<code>toJSON</code>
+								</a>
+								<span class="tableEntryAnnotation">(pretty, indentLevel)</span>
+							</td>
+							<td>Serializes the JSON structure into a string.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.toStdJSON.html" class="public">
+									<code>toStdJSON</code>
+								</a>
+								<span class="tableEntryAnnotation">()</span>
+							</td>
+							<td>Converts this <code class="lang-d"><a href="../../djson/value/JValue.html"><span class="typ">JValue</span></a></code> structure into a standard <code class="lang-d"><span class="pln">std<wbr/></span><span class="pun">.</span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="typ">JSONValue</span></code>.
+</td>
+						</tr>
+					</table>
+				</section>
+			</div>
+			<footer>
+				<div id="license-info">
+					
+				</div>
+			</footer>
+		</div>
+	</body>
+</html>

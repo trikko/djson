@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
+		<title>Module djson</title>
+		<link rel="stylesheet" href="./css/style.min.css"/>
+		<script type="text/javascript" src="./js/script.min.js"></script>
+	</head>
+	<body onload="setupDdox();">
+		<header></header>
+		<nav id="main-nav">
+			<div>
+				<noscript>
+					<p style="color: red">The search functionality needs JavaScript enabled</p>
+				</noscript>
+				<div id="symbolSearchPane" style="display: none">
+					<form action="#" method="GET">
+						<input id="symbolSearch" type="text" name="q" placeholder="Search for symbols" autocomplete="off" onchange="performSymbolSearch(24);" onkeypress="this.onchange();" onpaste="this.onchange();" oninput="this.onchange();" autofocus/>
+					</form>
+					<ul id="symbolSearchResults" class="symbolList" style="display: none"></ul><script type="application/javascript" src="./symbols.js"></script><script type="application/javascript">var symbolSearchRootDir = "./";
+document.getElementById('symbolSearchPane').style.display = 'block';</script>
+				</div>
+				<ul class="tree-view">
+					<li class="tree-view ">
+						<div class="package selected">
+							<a href="./djson.html">djson</a>
+						</div>
+				<ul class="tree-view">
+					<li>
+						<div class="module ">
+							<a href="./djson/parser.html">parser</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="./djson/tests.html">tests</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="./djson/value.html">value</a>
+						</div>
+					</li>
+				</ul>
+					</li>
+				</ul>
+			</div>
+			<p id="main-nav-footer">
+				Built with<a href="https://github.com/MartinNowak/scod">scod</a>
+			</p>
+		</nav>
+		<div id="main-contents">
+			<div>
+				<h1>Module djson</h1><p>High-performance, lazy JSON library for D.
+</p><section></section>
+<section><section><h2>Example</h2>
+<pre class="code"><code class="lang-d"><span class="kwd">import </span><span class="pln">djson</span><span class="pun">;
+
+</span><span class="typ">void </span><span class="pln">main</span><span class="pun">() {
+    </span><span class="kwd">auto </span><span class="pln">json </span><span class="pun">= </span><span class="pln">parseJSON</span><span class="pun">(</span><span class="str">`{
+        "user": {
+            "id": 123,
+            "profile": { "name": "Alice", "tags": ["admin", "beta"] }
+        }
+    }`</span><span class="pun">);
+
+    </span><span class="com">// 1. Read deep value (variadic or JSON pointer)
+    </span><span class="typ">string </span><span class="pln">name </span><span class="pun">= </span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">get</span><span class="pun">!</span><span class="typ">string</span><span class="pun">(</span><span class="str">"user"</span><span class="pun">, </span><span class="str">"profile"</span><span class="pun">, </span><span class="str">"name"</span><span class="pun">);
+    </span><span class="typ">string </span><span class="pln">tag0 </span><span class="pun">= </span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">get</span><span class="pun">!</span><span class="typ">string</span><span class="pun">(</span><span class="str">"/user/profile/tags/0"</span><span class="pun">);
+
+    </span><span class="com">// 2. Check if a key or path exists
+    </span><span class="kwd">if </span><span class="pun">(</span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">has</span><span class="pun">(</span><span class="str">"user"</span><span class="pun">, </span><span class="str">"profile"</span><span class="pun">, </span><span class="str">"name"</span><span class="pun">)) { </span><span class="com">/* ... */ </span><span class="pun">}
+    </span><span class="typ">bool </span><span class="pln">hasEmail </span><span class="pun">= </span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">has</span><span class="pun">(</span><span class="str">"/user/contact/email"</span><span class="pun">); </span><span class="com">// false
+
+    // 3. Set or update a value (auto-vivifies missing nodes)
+    </span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">set</span><span class="pun">(</span><span class="str">"alice@example.com"</span><span class="pun">, </span><span class="str">"user"</span><span class="pun">, </span><span class="str">"contact"</span><span class="pun">, </span><span class="str">"email"</span><span class="pun">);
+    </span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">set</span><span class="pun">(</span><span class="lit">1</span><span class="pun">, </span><span class="str">"/meta/version"</span><span class="pun">);
+
+    </span><span class="com">// 4. Delete a value or a whole branch
+    </span><span class="pln">json</span><span class="pun">[</span><span class="str">"user"</span><span class="pun">][</span><span class="str">"profile"</span><span class="pun">]<wbr/>.</span><span class="pln">remove</span><span class="pun">(</span><span class="str">"tags"</span><span class="pun">);
+    </span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">remove</span><span class="pun">(</span><span class="str">"meta"</span><span class="pun">);
+
+    </span><span class="com">// 5. Serialize back to JSON
+    </span><span class="typ">string </span><span class="pln">result </span><span class="pun">= </span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">toJSON</span><span class="pun">(</span><span class="kwd">true</span><span class="pun">); </span><span class="com">// pretty print
+</span><span class="pun">}</span></code></pre>
+</section>
+<section><h2>See Also</h2>
+<p>djson.value, djson.parser
+</p>
+</section>
+</section>
+			</div>
+			<footer>
+				<div id="license-info">
+					
+				</div>
+			</footer>
+		</div>
+	</body>
+</html>

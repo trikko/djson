@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
+		<title>Module djson.value</title>
+		<link rel="stylesheet" href="../css/style.min.css"/>
+		<script type="text/javascript" src="../js/script.min.js"></script>
+	</head>
+	<body onload="setupDdox();">
+		<header></header>
+		<nav id="main-nav">
+			<div>
+				<noscript>
+					<p style="color: red">The search functionality needs JavaScript enabled</p>
+				</noscript>
+				<div id="symbolSearchPane" style="display: none">
+					<form action="#" method="GET">
+						<input id="symbolSearch" type="text" name="q" placeholder="Search for symbols" autocomplete="off" onchange="performSymbolSearch(24);" onkeypress="this.onchange();" onpaste="this.onchange();" oninput="this.onchange();" autofocus/>
+					</form>
+					<ul id="symbolSearchResults" class="symbolList" style="display: none"></ul><script type="application/javascript" src="../symbols.js"></script><script type="application/javascript">var symbolSearchRootDir = "../";
+document.getElementById('symbolSearchPane').style.display = 'block';</script>
+				</div>
+				<ul class="tree-view">
+					<li class="tree-view ">
+						<div class="package ">
+							<a href="../djson.html">djson</a>
+						</div>
+				<ul class="tree-view">
+					<li>
+						<div class="module ">
+							<a href="../djson/parser.html">parser</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../djson/tests.html">tests</a>
+						</div>
+					</li>
+					<li>
+						<div class="module selected">
+							<a href="../djson/value.html">value</a>
+						</div>
+					</li>
+				</ul>
+					</li>
+				</ul>
+			</div>
+			<p id="main-nav-footer">
+				Built with<a href="https://github.com/MartinNowak/scod">scod</a>
+			</p>
+		</nav>
+		<div id="main-contents">
+			<div>
+				<h1>Module djson.value</h1><p>Core data structures and API for djson.
+     This module defines JValue, JObject, and JArray types.
+</p><section></section>
+				<section>
+					<h2>Classes</h2>
+					<table>
+						<col class="caption"/>
+						<tr>
+							<th>Name</th><th>Description</th>
+						</tr>
+						<tr>
+							<td>
+								<code>
+									<a id="JSONException" class="public" href="../djson/value/JSONException.html">JSONException</a>
+								</code>
+							</td>
+							<td>Exception thrown on JSON parsing or traversal errors.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<code>
+									<a id="JSONPartialException" class="public" href="../djson/value/JSONPartialException.html">JSONPartialException</a>
+								</code>
+							</td>
+							<td>Exception thrown specifically when the JSON parser requires more data
+    from an ongoing stream to complete the current operation.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<code>
+									<a id="JSONSyntaxException" class="public" href="../djson/value/JSONSyntaxException.html">JSONSyntaxException</a>
+								</code>
+							</td>
+							<td>Exception thrown specifically for syntax errors where the JSON format
+    is natively invalid or corrupted.
+</td>
+						</tr>
+					</table>
+				</section>
+				<section>
+					<h2>Structs</h2>
+					<table>
+						<col class="caption"/>
+						<tr>
+							<th>Name</th><th>Description</th>
+						</tr>
+						<tr>
+							<td>
+								<code>
+									<a id="JArray" class="public" href="../djson/value/JArray.html">JArray</a>
+								</code>
+							</td>
+							<td>Represents a JSON Array (ordered list of values).
+</td>
+						</tr>
+						<tr>
+							<td>
+								<code>
+									<a id="JObject" class="public" href="../djson/value/JObject.html">JObject</a>
+								</code>
+							</td>
+							<td>Represents a JSON Object (ordered mapping of keys to values).
+</td>
+						</tr>
+						<tr>
+							<td>
+								<code>
+									<a id="JValue" class="public" href="../djson/value/JValue.html">JValue</a>
+								</code>
+							</td>
+							<td>Represents a single JSON value.
+     Uses a union to store different types efficiently and supports lazy evaluation.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<code>
+									<a id="SafeResult" class="public" href="../djson/value/SafeResult.html">SafeResult</a>
+								</code>
+							</td>
+							<td>Wrapper for a result that might not exist.
+     Used by the <code class="lang-d"><wbr/><span class="pun">.</span><span class="pln">safe</span><span class="pun">!</span><span class="pln">T</span><span class="pun">()</span></code> methods to avoid throwing exceptions.
+</td>
+						</tr>
+					</table>
+				</section>
+				<section>
+					<h2>Enums</h2>
+					<table>
+						<col class="caption"/>
+						<tr>
+							<th>Name</th><th>Description</th>
+						</tr>
+						<tr>
+							<td>
+								<code>
+									<a id="JType" class="public" href="../djson/value/JType.html">JType</a>
+								</code>
+							</td>
+							<td>Represents the type of a JSON value.
+</td>
+						</tr>
+					</table>
+				</section>
+			</div>
+			<footer>
+				<div id="license-info">
+					
+				</div>
+			</footer>
+		</div>
+	</body>
+</html>

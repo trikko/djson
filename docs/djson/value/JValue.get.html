@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
+		<title>JValue.get - multiple declarations</title>
+		<link rel="stylesheet" href="../../css/style.min.css"/>
+		<script type="text/javascript" src="../../js/script.min.js"></script>
+	</head>
+	<body onload="setupDdox();">
+		<header></header>
+		<nav id="main-nav">
+			<div>
+				<noscript>
+					<p style="color: red">The search functionality needs JavaScript enabled</p>
+				</noscript>
+				<div id="symbolSearchPane" style="display: none">
+					<form action="#" method="GET">
+						<input id="symbolSearch" type="text" name="q" placeholder="Search for symbols" autocomplete="off" onchange="performSymbolSearch(24);" onkeypress="this.onchange();" onpaste="this.onchange();" oninput="this.onchange();" autofocus/>
+					</form>
+					<ul id="symbolSearchResults" class="symbolList" style="display: none"></ul><script type="application/javascript" src="../../symbols.js"></script><script type="application/javascript">var symbolSearchRootDir = "../../";
+document.getElementById('symbolSearchPane').style.display = 'block';</script>
+				</div>
+				<ul class="tree-view">
+					<li class="tree-view ">
+						<div class="package ">
+							<a href="../../djson.html">djson</a>
+						</div>
+				<ul class="tree-view">
+					<li>
+						<div class="module ">
+							<a href="../../djson/parser.html">parser</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/tests.html">tests</a>
+						</div>
+					</li>
+					<li>
+						<div class="module selected">
+							<a href="../../djson/value.html">value</a>
+						</div>
+					</li>
+				</ul>
+					</li>
+				</ul>
+			</div>
+			<p id="main-nav-footer">
+				Built with<a href="https://github.com/MartinNowak/scod">scod</a>
+			</p>
+		</nav>
+		<div id="main-contents">
+			<div>
+				<h1>JValue.get - multiple declarations</h1>
+				<nav class="page-nav">
+					<ul>
+						<li>
+							<a href="#0">
+								Function <code>JValue.get</code>
+							</a>
+						</li>
+						<li>
+							<a href="#1">
+								Function <code>JValue.get</code>
+							</a>
+						</li>
+					</ul>
+				</nav><h2 id="0">Function JValue.get</h2><p>Fluent access to nested values via variadic arguments or JSON pointer paths.
+</p>
+				<div class="prototype">
+					<code class="lang-d">
+						<div class="single-prototype">
+				<span class="pln">T</span> <span class="pln">get</span>(T, Args...)<span class="pun">(</span>
+				<br/>&nbsp;&nbsp;<span class="typ">Args</span> <span class="pln">args</span>
+				<br/>
+				<span class="pun">)</span>
+				<br/>
+				<span class="kwd">if</span> <span class="pun">(</span><span class="typ">Args<wbr/></span><span class="pun">.</span><span class="pln">length </span><span class="pun">&gt; </span><span class="lit">0</span><span class="pun">);</span>
+						</div>
+					</code>
+				</div>
+				<section><h3>Examples</h3>
+<p><code class="lang-d"><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">get</span><span class="pun">!</span><span class="typ">int</span><span class="pun">(</span><span class="str">"a"</span><span class="pun">, </span><span class="str">"b"</span><span class="pun">, </span><span class="lit">0</span><span class="pun">)</span></code>, <code class="lang-d"><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">get</span><span class="pun">!</span><span class="typ">string</span><span class="pun">(</span><span class="str">"/user/name"</span><span class="pun">)</span></code>
+</p>
+</section>
+<h2 id="1">Function JValue.get</h2><p>Returns the current node cast to type T.
+</p>
+				<div class="prototype">
+					<code class="lang-d">
+						<div class="single-prototype"><span class="pln">T</span> <span class="pln">get</span>(T)<span class="pun">(</span><span class="pun">)</span><span class="pun">;</span>
+						</div>
+					</code>
+				</div>
+				
+			</div>
+			<footer>
+				<div id="license-info">
+					
+				</div>
+			</footer>
+		</div>
+	</body>
+</html>
