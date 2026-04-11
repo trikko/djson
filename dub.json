@@ -1,0 +1,11 @@
+{
+	"description": "A high-performance, lazy JSON parser for D.",
+	"license": "MIT",
+	"authors": [
+		"Andrea Fontana"
+	],
+	"copyright": "Copyright © 2026, Andrea Fontana",
+	"name": "djson",
+	"targetType": "library",
+	"-ddoxTool": "scod"
+}
