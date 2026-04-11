@@ -169,7 +169,7 @@ json["a"] = parseJSON(`{"nested": true}`);
 json.remove("b");
 
 auto arr = parseJSON(`[1, 2, 3, 4, 5]`);
-arr.remove(cast(size_t) 2);  // removes element at index 2 → [1, 2, 4, 5]
+arr.remove(2);  // removes element at index 2 → [1, 2, 4, 5]
 ```
 
 ### Serialization

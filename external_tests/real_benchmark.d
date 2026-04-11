@@ -48,8 +48,7 @@ void main() {
                 } catch(Exception e) {}
             } else {
                 try {
-                    auto j = djson.parseJSON(text);
-                    j.parseAll(); // force full parsing
+                    auto j = djson.parseJSONComplete(text);
                 } catch(Exception e) {}
             }
         }

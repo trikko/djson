@@ -30,7 +30,7 @@ void main() {
         version(UseStdJson) {
             try { auto j = std.json.parseJSON(text); } catch(Exception e) {}
         } else {
-            try { auto j = djson.parseJSON(text); j.parseAll(); } catch(Exception e) {}
+            try { auto j = djson.parseJSONComplete(text); } catch(Exception e) {}
         }
     }
     
@@ -47,8 +47,7 @@ void main() {
                 } catch(Exception e) {}
             } else {
                 try {
-                    auto j = djson.parseJSON(text);
-                    j.parseAll(); // force full parsing for fairness
+                    auto j = djson.parseJSONComplete(text);
                 } catch(Exception e) {}
             }
         }
