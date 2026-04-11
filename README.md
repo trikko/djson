@@ -15,6 +15,10 @@ A lazy JSON parser for the D programming language. Parses only what you access: 
 - **Strict JSON compliance**: passes 283/283 tests from the [JSONTestSuite](https://github.com/nst/JSONTestSuite)
 - **Performance**: faster than `std.json`
 
+## Documentation
+
+- [API Reference](https://trikko.github.io/djson/djson.html)
+
 ## Installation
 
 ```
