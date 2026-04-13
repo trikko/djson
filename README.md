@@ -10,8 +10,9 @@ A lazy JSON parser for the D programming language. Parses only what you access: 
 - **Fluent access API**: variadic arguments and JSON pointer paths (`/a/b/0`)
 - **Safe access**: `.safe!T()` returns a result with a `.found` flag instead of throwing
 - **Resumable Streaming Parsing**: append data to a partial JSON object and resume parsing seamlessly
+- **Binding**: bind D structs and classes to JSON objects and arrays
 - **Mutation**: set values, add keys, remove branches, then serialize back to JSON
-- **`std.json` interop**: convert to/from `std.json.JSONValue` when needed
+- **Interop with `std.json`**: convert to/from `std.json.JSONValue` when needed
 - **Strict JSON compliance**: passes 283/283 tests from the [JSONTestSuite](https://github.com/nst/JSONTestSuite)
 - **Performance**: faster than `std.json`
 
