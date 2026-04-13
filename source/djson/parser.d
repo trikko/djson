@@ -127,7 +127,10 @@ package bool parseNextPair(JValue* v, string seekKey = null) @trusted {
         }
     }
 
-    if (s.length == 0 || s[0] != '"') {
+    if (s.length == 0) {
+        throw new JSONPartialException("Expected string as key");
+    }
+    if (s[0] != '"') {
         throw new JSONSyntaxException("Expected string as key");
     }
     
@@ -135,7 +138,10 @@ package bool parseNextPair(JValue* v, string seekKey = null) @trusted {
     string key = consumeString(s);
     
     s = stripJSONWhitespace(s);
-    if (s.length == 0 || s[0] != ':') {
+    if (s.length == 0) {
+        throw new JSONPartialException("Expected ':' after key");
+    }
+    if (s[0] != ':') {
         throw new JSONSyntaxException("Expected ':' after key");
     }
     s = stripJSONWhitespace(s[1..$]);

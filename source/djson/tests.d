@@ -667,3 +667,320 @@ unittest {
     assert(arr.get!long(3) == 99);
     
 }
+
+unittest {
+    // 22. JSON Binding system (fromJSON/toJSON)
+    import std.string : toUpper, toLower;
+    
+    // 22a. Basic struct binding
+    @JSON
+    struct Simple {
+        string name;
+        int age;
+    }
+    
+    auto json = parseJSON(`{"name": "Alice", "age": 30}`);
+    auto s = fromJSON!Simple(json);
+    assert(s.name == "Alice");
+    assert(s.age == 30);
+    
+    auto j2 = toJSON(s);
+    assert(j2.get!string("name") == "Alice");
+    assert(j2.get!int("age") == 30);
+
+    // 22b. Exclusion and Renaming
+    struct Custom {
+        string secret; // Not marked with JSON, should be ignored
+        
+        @JSON
+        {
+            @JSON("user_id") int id;
+            string visible;
+        }
+    }
+    
+    auto jsonC = parseJSON(`{"user_id": 1, "secret": "shh", "visible": "hello"}`);
+    auto c = fromJSON!Custom(jsonC);
+    assert(c.id == 1);
+    assert(c.secret == ""); // stayed .init
+    assert(c.visible == "hello");
+    
+    auto jc2 = toJSON(c);
+    assert(jc2.has("user_id"));
+    assert(!jc2.has("secret"));
+    assert(jc2.get!string("visible") == "hello");
+
+    // 22c. Preprocessing and Postprocessing
+    // Static: just because we are inside a unittest block and struct has lambdas. 
+    // If struct was placed outside, it doesn't need to be static.
+    static struct Processed {
+        @JSON
+        {
+            @JSONPreProcess!((v) => v.get!string.toUpper) string name;
+            @JSONPostProcess!((v) => JValue(v.toLower)) string city;
+        }
+    }
+    
+    auto jsonP = parseJSON(`{"name": "alice", "city": "London"}`);
+    auto p = fromJSON!Processed(jsonP);
+    assert(p.name == "ALICE");
+    assert(p.city == "London"); // not processed on input
+    
+    auto jp2 = toJSON(p);
+    assert(jp2.get!string("name") == "ALICE"); // not processed on output
+    assert(jp2.get!string("city") == "london"); // processed on output
+
+    // 22d. Strictness: Required vs Optional
+    struct Strict {
+        @JSON
+        {
+            int req;
+            @JSONOptional int opt;
+        }
+    }
+    
+    // Missing required should throw
+    auto jsonS1 = parseJSON(`{"opt": 1}`);
+    auto e1 = collectException!JSONException(fromJSON!Strict(jsonS1));
+    assert(e1 !is null);
+    
+    // Missing optional should work
+    auto jsonS2 = parseJSON(`{"req": 100}`);
+    auto s2 = fromJSON!Strict(jsonS2);
+    assert(s2.req == 100);
+    assert(s2.opt == 0);
+
+    // 22e. Classes and Nested types
+    struct Address {
+        @JSON:
+        string street;
+        int zip;
+    }
+
+    // Static: just because class is inside a unittest block.
+    static class User {
+        @JSON:
+        string name;
+        @JSONOptional Address addr;
+    }
+    
+    auto jsonU = parseJSON(`{"name": "Bob", "addr": {"street": "Main St", "zip": 12345}}`);
+    auto u = fromJSON!User(jsonU);
+    assert(u.name == "Bob");
+    assert(u.addr.street == "Main St");
+    assert(u.addr.zip == 12345);
+    
+    auto ju2 = toJSON(u);
+    assert(ju2.get!string("addr", "street") == "Main St");
+    
+    // 22f. Arrays and AA
+    struct Container {
+        @JSON:
+        int[] scores;
+        string[string] metadata;
+    }
+    
+    auto jsonCon = parseJSON(`{"scores": [10, 20], "metadata": {"env": "prod"}}`);
+    auto con = fromJSON!Container(jsonCon);
+    assert(con.scores == [10, 20]);
+    assert(con.metadata["env"] == "prod");
+
+    // 22g. Whole-struct marking and protection
+    // Static: just because we are inside a unittest block and struct has a method.
+    @JSON
+    static struct Ergonomic {
+        string name;        // Included (public)
+        private string key; // Ignored (private)
+        @JSON int secret;   // Included (explicitly marked)
+        @JSONIgnore int tmp; // Ignored (explicitly ignored)
+        
+        bool isOk() { return true; } // Ignored (method)
+    }
+    
+    auto jsonE = parseJSON(`{"name": "Ergo", "key": "abc", "secret": 123, "tmp": 99}`);
+    auto ergo = fromJSON!Ergonomic(jsonE);
+    assert(ergo.name == "Ergo");
+    assert(ergo.key == ""); 
+    assert(ergo.secret == 123);
+    assert(ergo.tmp == 0);
+    
+    auto je2 = toJSON(ergo);
+    assert(je2.has("name"));
+    assert(!je2.has("key"));
+    assert(je2.has("secret"));
+    assert(!je2.has("tmp"));
+}
+
+unittest {
+    // 23. Custom serialization for a field
+    // Demonstrates string "part1|part2|part3" converted to/from SubStructure
+    import std.string : split;
+
+    struct SubStructure {
+        string field1;
+        string field2;
+        string field3;
+    }
+
+    static SubStructure parseSub(JValue v) {
+        string[] parts = v.get!string.split("|");
+        return SubStructure(parts[0], parts[1], parts[2]);
+    }
+
+    static JValue serializeSub(SubStructure s) {
+        return JValue(s.field1 ~ "|" ~ s.field2 ~ "|" ~ s.field3);
+    }
+
+    static struct CustomSerialized {
+        @JSON {
+            @JSONPreProcess!parseSub
+            @JSONPostProcess!serializeSub
+            SubStructure info;
+        }
+    }
+
+    auto json = parseJSON(`{"info": "test|stupid|serialization"}`);
+    auto obj = fromJSON!CustomSerialized(json);
+
+    assert(obj.info.field1 == "test");
+    assert(obj.info.field2 == "stupid");
+    assert(obj.info.field3 == "serialization");
+
+    auto j2 = toJSON(obj);
+    assert(j2.get!string("info") == "test|stupid|serialization");
+}
+
+unittest {
+    // 24. JSON pointer binding
+
+    @JSON
+    struct User {
+        string name;
+        int age;
+    }
+
+    struct Couple {
+
+        // Bind deep fields (two different syntax)
+        @JSON("/first/name") string firstUserName;
+        @JSON("first", "age") int firstUserAge;
+        
+        // Bind a sub struct
+        @JSON User second;
+    }
+
+    auto json = parseJSON(`{"first" : { "name" : "Alice", "age" : 30}, "second" : {"name" : "Bob", "age" : 32}}`);
+
+    Couple c = json.fromJSON!Couple;
+
+    assert(c.firstUserName == "Alice");
+    assert(c.firstUserAge == 30);
+    assert(c.second.name == "Bob");
+    assert(c.second.age == 32);
+
+    // Changes
+    c.firstUserAge = 28;
+    c.second.name = "Foo";
+
+    assert(c.toJSON().toString() == `{"first":{"name":"Alice","age":28},"second":{"name":"Foo","age":32}}`);
+}
+unittest {
+    // 25. JSONOptional with paths
+    struct OptionalPaths {
+        @JSONOptional("custom_id") int id = 42;
+        @JSONOptional("/deep/key") string deep = "default";
+        @JSONOptional("tags", 0) string firstTag = "none";
+    }
+
+    // Case 1: All missing
+    {
+        auto j = parseJSON(`{}`);
+        auto o = fromJSON!OptionalPaths(j);
+        assert(o.id == 42);
+        assert(o.deep == "default");
+        assert(o.firstTag == "none");
+    }
+
+    // Case 2: Some present
+    {
+        auto j = parseJSON(`{"custom_id": 10, "deep": {"key": "found"}}`);
+        auto o = fromJSON!OptionalPaths(j);
+        assert(o.id == 10);
+        assert(o.deep == "found");
+        assert(o.firstTag == "none");
+    }
+
+    // Case 3: All present
+    {
+        auto j = parseJSON(`{"custom_id": 99, "deep": {"key": "yes"}, "tags": ["tag1"]}`);
+        auto o = fromJSON!OptionalPaths(j);
+        assert(o.id == 99);
+        assert(o.deep == "yes");
+        assert(o.firstTag == "tag1");
+    }
+}
+
+unittest {
+    // 24. Builder API (JSOB and JSAB)
+    auto json = JSOB(
+        "name", "djson",
+        "version", 1,
+        "features", JSAB("lazy", "fast", "safe"),
+        "config", JSOB("debug", false)
+    );
+    
+    assert(json.get!string("name") == "djson");
+    assert(json.get!int("version") == 1);
+    assert(json.get!string("features", 1) == "fast");
+    assert(json.get!bool("config", "debug") == false);
+    
+    // Serialization
+    assert(json.toJSON() == `{"name":"djson","version":1,"features":["lazy","fast","safe"],"config":{"debug":false}}`);
+    
+    // JSAB for top-level array
+    auto arr = JSAB(1, 2, "three");
+    assert(arr.length == 3);
+    assert(arr.toJSON() == `[1,2,"three"]`);
+}
+
+unittest {
+    // 25. Array appending (~=) and auto-promotion
+    auto json = JValue(null);
+    json ~= 1;
+    assert(json.length == 1);
+    assert(json[0].get!int == 1);
+    
+    json ~= "two";
+    assert(json.length == 2);
+    assert(json[1].get!string == "two");
+    
+    // Promotion of primitive to array
+    auto p = JValue(42);
+    p ~= 43;
+    assert(p.type == JType.Array);
+    assert(p.length == 2);
+    assert(p[0].get!int == 42);
+    assert(p[1].get!int == 43);
+}
+
+unittest {
+    // 26. Nested append with auto-vivification
+    auto json = JSOB("k1", "v1");
+    
+    // Append to existing primitive (promotion)
+    json.append("v2", "k1");
+    assert(json["k1"].type == JType.Array);
+    assert(json["k1"].length == 2);
+    assert(json["k1"][1].get!string == "v2");
+    
+    // Append to non-existent path (auto-vivification)
+    json.append(100, "new", "list");
+    assert(json.has("new", "list"));
+    assert(json.get!int("new", "list", 0) == 100);
+    
+    // Append via JSON Pointer
+    json.append("world", "/hello/array");
+    assert(json.get!string("/hello/array/0") == "world");
+    json.append("!", "/hello/array");
+    assert(json.get!string("/hello/array/1") == "!");
+}

@@ -108,6 +108,11 @@ struct JObject {
             static assert(0, "Cannot cast JObject to " ~ T.stringof);
         }
     }
+
+    /++ Enables `std.stdio.writeln` and string formatting. ++/
+    string toString() {
+        return JValue(this).toJSON();
+    }
 }
 
 /++ Represents a JSON Array (ordered list of values). ++/
@@ -125,6 +130,11 @@ struct JArray {
         } else {
             static assert(0, "Cannot cast JArray to " ~ T.stringof);
         }
+    }
+
+    /++ Enables `std.stdio.writeln` and string formatting. ++/
+    string toString() {
+        return JValue(this).toJSON();
     }
 }
 
@@ -397,11 +407,13 @@ struct JValue {
         
         foreach(ref p; obj.pairs) {
             if (p.key == key) {
-                p.value = JValue(value);
+                static if (is(T == JValue)) p.value = value;
+                else p.value = JValue(value);
                 return;
             }
         }
-        obj.pairs ~= JObject.Pair(key, JValue(value));
+        static if (is(T == JValue)) obj.pairs ~= JObject.Pair(key, value);
+        else obj.pairs ~= JObject.Pair(key, JValue(value));
     }
 
     /++  Mutation via operator [] for arrays.
@@ -422,26 +434,52 @@ struct JValue {
         if (arr.elements.length <= index) {
             arr.elements.length = index + 1;
         }
-        arr.elements[index] = JValue(value);
+        static if (is(T == JValue)) arr.elements[index] = value;
+        else arr.elements[index] = JValue(value);
+    }
+
+    /++  Appends a value to a JSON array.
+         If the node is Null, it becomes an Array with the value.
+         If the node is already an Array, the value is added to it.
+         If the node is a primitive or object, it is promoted to an Array containing [oldValue, newValue]. ++/
+    void opOpAssign(string op, T)(T value) if (op == "~") {
+        evaluateSelf();
+        if (type == JType.Null) {
+            type = JType.Array;
+            arr.isFullyParsed = true;
+            static if (is(T == JValue)) arr.elements = [value];
+            else arr.elements = [JValue(value)];
+        } else if (type == JType.Array) {
+            while(!arr.isFullyParsed) djson.parser.parseNextElement(&this);
+            static if (is(T == JValue)) arr.elements ~= value;
+            else arr.elements ~= JValue(value);
+        } else {
+            // Promotion: primitive or object -> array
+            JValue old = this;
+            type = JType.Array;
+            arr.isFullyParsed = true;
+            static if (is(T == JValue)) arr.elements = [old, value];
+            else arr.elements = [old, JValue(value)];
+        }
     }
 
     private T as(T)() {
         evaluateSelf();
         static if (is(T == string)) {
-            if (type != JType.String) throw new JSONException("Expected String");
+            if (type != JType.String) throw new JSONException("Expected String, got " ~ type.to!string );
             return str;
         } else static if (is(T == bool)) {
-            if (type != JType.Bool) throw new JSONException("Expected Bool");
+            if (type != JType.Bool) throw new JSONException("Expected Bool, got " ~ type.to!string );
             return boolean;
         } else static if (is(T : double) || is(T : long)) {
-            if (type != JType.Number) throw new JSONException("Expected Number");
+            if (type != JType.Number) throw new JSONException("Expected Number got " ~ type.to!string );
             return cast(T)number;
         } else static if (is(T == JObject)) {
-            if (type != JType.Object) throw new JSONException("Expected Object");
+            if (type != JType.Object) throw new JSONException("Expected Object got " ~ type.to!string );
             while(!obj.isFullyParsed) djson.parser.parseNextPair(&this);
             return obj;
         } else static if (is(T == JArray)) {
-            if (type != JType.Array) throw new JSONException("Expected Array");
+            if (type != JType.Array) throw new JSONException("Expected Array got " ~ type.to!string );
             while(!arr.isFullyParsed) djson.parser.parseNextElement(&this);
             return arr;
         } else static if (is(T == JValue)) {
@@ -509,7 +547,9 @@ struct JValue {
     SafeResult!T safe(T, Args...)(Args args) if (Args.length > 0) {
         try {
             return SafeResult!T(get!T(args), true);
-        } catch (Exception) {
+        } catch (JSONPartialException e) {
+            throw e;
+        } catch (Exception e) {
             return SafeResult!T(T.init, false);
         }
     }
@@ -518,7 +558,9 @@ struct JValue {
     SafeResult!T safe(T)() {
         try {
             return SafeResult!T(as!T(), true);
-        } catch (Exception) {
+        } catch (JSONPartialException e) {
+            throw e;
+        } catch (Exception e) {
             return SafeResult!T(T.init, false);
         }
     }
@@ -527,6 +569,33 @@ struct JValue {
          Examples: `json.has("user", "id")`, `json.has("/tags/0")`. ++/
     bool has(Args...)(Args args) if (Args.length > 0) {
         return safe!JValue(args).found;
+    }
+
+
+    /++  Traverse a JValue following a runtime array of JSONKeySegment (from djson.binding).
+         Returns null if any segment is not found. Used internally by the binding system. ++/
+    JValue* getPtrBySegments(S)(S[] segments) {
+        JValue* current = &this;
+        foreach (seg; segments) {
+            if (!current) return null;
+            current.evaluateSelf();
+            if (seg.isIndex) {
+                current = current.getPtr(seg.index);
+            } else {
+                if (current.type == JType.Array) {
+                    try {
+                        import std.conv : to;
+                        size_t idx = to!size_t(seg.key);
+                        current = current.getPtr(idx);
+                    } catch (Exception) {
+                        return null; // Not a valid index for an array
+                    }
+                } else {
+                    current = current.getPtr(seg.key);
+                }
+            }
+        }
+        return current;
     }
 
     /++  Sets a value at a nested path using variadic keys/indices or a JSON pointer.
@@ -639,10 +708,113 @@ struct JValue {
         }
     }
 
+    /++  Appends a value to a nested path using variadic keys/indices or a JSON pointer.
+         Automatically creates intermediate structures and promotes non-array target nodes. ++/
+    void append(T, Args...)(T value, Args args) if (Args.length > 0) {
+        static if (Args.length == 1 && is(Args[0] == string)) {
+            string path = args[0];
+            if (path.length > 0 && path[0] == '/') {
+                appendByPath(value, path);
+                return;
+            }
+        }
+        
+        JValue* current = &this;
+        foreach(i, arg; args) {
+            if (i == Args.length - 1) {
+                // For the last segment, we need to get the pointer to the target node
+                // If it doesn't exist, we create a Null node which will be turned into an Array by ~=
+                JValue* target = current.getPtrMutable(arg);
+                if (!target) {
+                    (*current)[arg] = JValue(null);
+                    target = current.getPtrMutable(arg);
+                }
+                (*target) ~= value;
+            } else {
+                current = current.getPtrMutableOrCreate(arg);
+            }
+        }
+    }
+
+    private void appendByPath(T)(T value, string path) {
+        if (path == "/" || path.length == 0) { 
+            this ~= value;
+            return; 
+        }
+        string[] parts = path[1..$].split("/");
+        
+        JValue* current = &this;
+        for(size_t i = 0; i < parts.length; i++) {
+            string part = decodePointerToken(parts[i]);
+            if (i == parts.length - 1) {
+                JValue* target = current.getPtrMutable(part);
+                if (!target) {
+                    // Try to see if it should be an array index or object key
+                    bool isNum = false;
+                    try { import std.conv : to; to!size_t(part); isNum = true; } catch(Exception e) {}
+                    if (isNum) (*current)[to!size_t(part)] = JValue(null);
+                    else (*current)[part] = JValue(null);
+                    target = current.getPtrMutable(part);
+                }
+                (*target) ~= value;
+            } else {
+                current = current.getPtrMutableOrCreate(part);
+            }
+        }
+    }
+
+    // Helper to get a mutable pointer to a field/index, or null if not found
+    private JValue* getPtrMutable(K)(K key) {
+        evaluateSelf();
+        static if (is(K == string)) {
+            if (type != JType.Object) return null;
+            foreach(ref p; obj.pairs) if (p.key == key) return &p.value;
+            while(!obj.isFullyParsed) {
+                if (djson.parser.parseNextPair(&this, key)) {
+                    if (obj.pairs[$-1].key == key) return &obj.pairs[$-1].value;
+                } else break;
+            }
+        } else {
+            if (type != JType.Array) return null;
+            size_t idx = cast(size_t)key;
+            if (idx < arr.elements.length) return &arr.elements[idx];
+            while(!arr.isFullyParsed && arr.elements.length <= idx) djson.parser.parseNextElement(&this);
+            if (idx < arr.elements.length) return &arr.elements[idx];
+        }
+        return null;
+    }
+
+    // Helper to get a mutable pointer or create a structure if needed
+    private JValue* getPtrMutableOrCreate(K)(K key) {
+        evaluateSelf();
+        static if (is(K == string)) {
+            if (type == JType.Null) {
+                type = JType.Object;
+                obj.isFullyParsed = true;
+            }
+            if (type != JType.Object) throw new JSONException("Cannot traverse non-object node");
+            JValue* p = getPtrMutable(key);
+            if (p) return p;
+            obj.pairs ~= JObject.Pair(key, JValue(null));
+            return &obj.pairs[$-1].value;
+        } else {
+            if (type == JType.Null) {
+                type = JType.Array;
+                arr.isFullyParsed = true;
+            }
+            if (type != JType.Array) throw new JSONException("Cannot traverse non-array node");
+            size_t idx = cast(size_t)key;
+            JValue* p = getPtrMutable(idx);
+            if (p) return p;
+            if (arr.elements.length <= idx) arr.elements.length = idx + 1;
+            return &arr.elements[idx];
+        }
+    }
+
     /++ Decodes a single JSON Pointer reference token per RFC 6901.
         Replaces `~1` with `/` and `~0` with `~` in a single pass.
         The order is significant: `~01` decodes to `~1`, not `/`. ++/
-    private static string decodePointerToken(string token) pure @safe {
+    package static string decodePointerToken(string token) pure @safe {
         // Fast path: no escapes present
         bool hasEscape = false;
         foreach(c; token) { if (c == '~') { hasEscape = true; break; } }
@@ -674,6 +846,11 @@ struct JValue {
         Appender!string app = appender!string();
         toJSONImpl(app, pretty, indentLevel);
         return app.data;
+    }
+
+    /++ Enables `std.stdio.writeln` and string formatting. ++/
+    string toString() {
+        return toJSON();
     }
 
     private void toJSONImpl(ref Appender!string app, bool pretty, uint indentLevel) {

@@ -159,8 +159,12 @@ auto json = parseJSON(`{"a": 1}`);
 json["b"] = "hello";
 json["c"] = true;
 
-// Set by JSON pointer path (auto-vivifies intermediate nodes)
+// Appending to arrays (auto-promotes primitives to arrays)
+json["a"] ~= 2; // "a" became [1, 2]
+
+// Set/Append by JSON pointer path (auto-vivifies intermediate nodes)
 json.set(42, "/x/y/z");
+json.append("item", "/list/tags"); // creates {"list": {"tags": ["item"]}}
 
 // Overwrite nested objects
 json["a"] = parseJSON(`{"nested": true}`);
@@ -170,6 +174,28 @@ json.remove("b");
 
 auto arr = parseJSON(`[1, 2, 3, 4, 5]`);
 arr.remove(2);  // removes element at index 2 → [1, 2, 4, 5]
+```
+
+### Construction (Builders)
+
+DJSON provides a concise way to build JSON structures manually using `JSOB` (JSON Object Builder) and `JSAB` (JSON Array Builder).
+
+```d
+import djson;
+
+// Build a complex JSON structure fluently
+auto json = JSOB(
+    "name", "djson",
+    "version", 1,
+    "features", JSAB("lazy", "fast", "safe"),
+    "metadata", JSOB(
+        "author", "Andrea Fontana",
+        "tags", JSAB(1, 2, 3)
+    )
+);
+
+// Add to an existing object
+json["new_key"] = "new_value";
 ```
 
 ### Serialization
@@ -200,6 +226,132 @@ auto json = djson.parseJSON(`{"key": "value"}`);
 JSONValue stdVal = json.toStdJSON();
 
 assert(stdVal["key"].str == "value");
+```
+
+### JSON Binding
+
+DJSON provides a binding system to convert between D structs/classes and `JValue`.
+
+#### Basic Usage
+
+You can then use `fromJSON!T` to create a D object from a `JValue`, and `toJSON` to create a `JValue` from a D object.
+
+```d
+import djson;
+
+struct User {
+    // You can also apply @JSON to the whole struct/class.
+    // Here we apply it to a block of fields.
+    @JSON {
+        string name;
+        int age;
+    }
+
+    // This field is not included by default
+    string other;
+}
+
+// Convert from JValue to struct
+auto json = parseJSON(`{"name": "Alice", "age": 30}`);
+User u = fromJSON!User(json);
+
+assert(u.name == "Alice");
+assert(u.age == 30);
+
+u.age = 35;
+
+// Convert from struct to JValue
+JValue v = toJSON(u);
+assert(v["name"].get!string == "Alice");
+```
+
+#### UDAs for Customization
+
+The binding system can be customized using User Defined Attributes (UDAs):
+
+- `@JSON`: If applied to a struct or class, all public fields are included by default. If applied to a field, that field is included even if it's not public or the parent isn't marked with `@JSON`. It also supports custom paths via variadic arguments or JSON pointers (e.g., `@JSON("path", "to", "key")`, `@JSON("/path/to/key")`).
+- `@JSONIgnore`: Explicitly exclude a field from binding.
+- `@JSONOptional`: If the field is missing in the JSON input, `fromJSON` will not throw an exception and will leave the field with its default `.init` value. Supports the same path mapping as `@JSON`.
+- `@JSONPreProcess!func`: Apply a custom transformation function when reading from JSON. The function must have the signature `FieldType func(JValue v)`.
+- `@JSONPostProcess!func`: Apply a custom transformation function when writing to JSON. The function must have the signature `JValue func(FieldType v)`.
+
+```d
+import djson;
+import djson.binding;
+import std.string : toUpper;
+
+@JSON
+struct Config {
+    // Rename field in JSON
+    @JSON("max_threads") int threads;
+    
+    // Optional field with default value
+    @JSONOptional string host = "localhost";
+    
+    // Ignore this field
+    @JSONIgnore string internalKey;
+    
+    // Custom pre-processing (e.g., uppercase a string)
+    @JSONPreProcess!((v) => v.get!string.toUpper)
+    string category;
+}
+
+auto json = parseJSON(`{"max_threads": 8, "category": "production"}`);
+Config cfg = fromJSON!Config(json);
+
+assert(cfg.threads == 8);
+assert(cfg.host == "localhost");
+assert(cfg.category == "PRODUCTION");
+```
+
+#### Deep Path Binding
+
+`@JSONKey` supports variadic arguments and JSON pointers to bind D fields directly to nested JSON structures. You can also bind entire sub-structs for a more organized data model.
+
+```d
+@JSON
+struct Profile {
+    string name;
+    int level;
+}
+
+struct GameData {
+    // Bind to a deep path using JSON Pointer
+    @JSON("/server/status/code") 
+    int statusCode;
+
+    // Bind using variadic segments, including array indices
+    @JSON("players", 0, "name") 
+    string firstPlayerName;
+
+    // Bind using JSON Pointer for the second player
+    @JSON("/players/1/name")
+    string secondPlayerName;
+
+    // Bind an entire substructure
+    @JSON 
+    Profile leader;
+}
+
+auto json = parseJSON(`{
+    "server": {"status": {"code": 200}},
+    "leader": {"name": "Alice", "level": 10},
+    "players": [
+        {"name": "Bob", "level": 5},
+        {"name": "Charlie", "level": 8}
+    ]
+}`);
+
+GameData data = fromJSON!GameData(json);
+assert(data.statusCode == 200);
+assert(data.firstPlayerName == "Bob");
+assert(data.secondPlayerName == "Charlie");
+assert(data.leader.name == "Alice");
+
+// Serialization preserves the deep structure
+JValue v = toJSON(data);
+assert(v.get!int("/server/status/code") == 200);
+assert(v.get!string("players", 0, "name") == "Bob");
 ```
 
 ## Building & Testing
