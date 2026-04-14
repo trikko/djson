@@ -984,3 +984,39 @@ unittest {
     json.append("!", "/hello/array");
     assert(json.get!string("/hello/array/1") == "!");
 }
+
+unittest {
+    // isType properties
+    auto json = parseJSON(`{"a": 1, "b": "str", "c": [], "d": {}, "e": true, "f": null, "g": false, "h": 1.2}`);
+
+    assert(!json.isNull);
+    assert(json.isObject);
+    assert(!json.isArray);
+    assert(!json.isString);
+    assert(!json.isNumber);
+    assert(!json.isBool);
+
+    assert(json["a"].isNumber);
+    assert(!json["a"].isString);
+
+    assert(json["b"].isString);
+    assert(!json["b"].isNumber);
+
+    assert(json["c"].isArray);
+    assert(!json["c"].isObject);
+
+    assert(json["d"].isObject);
+    assert(!json["d"].isArray);
+
+    assert(json["e"].isBool);
+    assert(!json["e"].isNull);
+
+    assert(json["f"].isNull);
+    assert(!json["f"].isBool);
+
+    assert(json["g"].isBool);
+    assert(!json["g"].isNumber);
+
+    assert(json["h"].isNumber);
+    assert(!json["h"].isString);
+}

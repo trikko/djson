@@ -215,6 +215,36 @@ struct JValue {
         return type == JType.Null;
     }
 
+    /++ Returns true if this value represents JSON string. ++/
+    @property bool isString() {
+        evaluateSelf();
+        return type == JType.String;
+    }
+
+    /++ Returns true if this value represents JSON number. ++/
+    @property bool isNumber() {
+        evaluateSelf();
+        return type == JType.Number;
+    }
+
+    /++ Returns true if this value represents JSON bool. ++/
+    @property bool isBool() {
+        evaluateSelf();
+        return type == JType.Bool;
+    }
+
+    /++ Returns true if this value represents JSON object. ++/
+    @property bool isObject() {
+        evaluateSelf();
+        return type == JType.Object;
+    }
+
+    /++ Returns true if this value represents JSON array. ++/
+    @property bool isArray() {
+        evaluateSelf();
+        return type == JType.Array;
+    }
+
     /++  Remove a key from a JSON object.
          Does nothing and returns false if the node is not an object or the key is not found.
          Returns true if the key was successfully removed. ++/
