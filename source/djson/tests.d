@@ -984,3 +984,29 @@ unittest {
     json.append("!", "/hello/array");
     assert(json.get!string("/hello/array/1") == "!");
 }
+
+unittest {
+    // 27. Error conditions: missing commas
+
+    // Missing comma in array (lazy)
+    auto lazyArr = parseJSON("[1 2]");
+    auto e1 = collectException!JSONSyntaxException(lazyArr.parseAll());
+    assert(e1 !is null);
+    assert(e1.msg == "Expected ',' between array entries");
+
+    // Missing comma in array (eager)
+    auto e2 = collectException!JSONSyntaxException(parseJSONComplete("[1 2]"));
+    assert(e2 !is null);
+    assert(e2.msg == "Expected ',' between array entries");
+
+    // Missing comma in object (lazy)
+    auto lazyObj = parseJSON(`{"a": 1 "b": 2}`);
+    auto e3 = collectException!JSONSyntaxException(lazyObj.parseAll());
+    assert(e3 !is null);
+    assert(e3.msg == "Expected ',' between object entries");
+
+    // Missing comma in object (eager)
+    auto e4 = collectException!JSONSyntaxException(parseJSONComplete(`{"a": 1 "b": 2}`));
+    assert(e4 !is null);
+    assert(e4.msg == "Expected ',' between object entries");
+}
