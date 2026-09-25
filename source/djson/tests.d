@@ -1020,3 +1020,36 @@ unittest {
     assert(json["h"].isNumber);
     assert(!json["h"].isString);
 }
+
+unittest {
+    // Partial: navigating inside incomplete containers
+    auto json = parseJSON(`{
+  "users": [
+    { "id": 1, "name": "Alice", "role": "Admin" },
+    { "id": 2, "name": "Bob", "role": "User" },
+    { "id": 3, "name": "Cha`);
+
+    // Elements already received are reachable even though "users" is not closed
+    assert(json.get!string("/users/1/name") == "Bob");
+    assert(json.get!long("/users/0/id") == 1);
+    assert(json.get!long("/users/2/id") == 3);
+
+    // The truncated parts still report a partial stream
+    assert(collectException!JSONPartialException(json.get!string("/users/2/name")) !is null);
+    assert(collectException!JSONPartialException(json["users"].length) !is null);
+    assert(collectException!JSONPartialException(json.parseAll()) !is null);
+
+    json.appendData(`rlie"}]}`);
+    assert(json.get!string("/users/2/name") == "Charlie");
+    assert(json["users"].length == 3);
+    json.parseAll();
+
+    // A closed container at the end of the buffer is complete
+    auto nested = parseJSON(`{"a": {"b":1}`);
+    assert(nested.get!long("/a/b") == 1);
+
+    // A trailing number is still ambiguous
+    auto nums = parseJSON(`[1, 2`);
+    assert(nums.get!long(0) == 1);
+    assert(collectException!JSONPartialException(nums.get!long(1)) !is null);
+}

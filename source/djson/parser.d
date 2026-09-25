@@ -107,6 +107,15 @@ package void evaluateNode(JValue* v) @trusted {
 
 package bool parseNextPair(JValue* v, string seekKey = null) @trusted {
     if (v.type != JType.Object || v.obj.isFullyParsed) return false;
+
+    if (v.obj.hasPendingTail) {
+        // Last pair already registered: just advance past its (now complete) value
+        string tail = v.obj.unparsedData;
+        skipValue(tail);
+        v.obj.unparsedData = tail;
+        v.obj.hasPendingTail = false;
+        return true;
+    }
     
     string s = stripJSONWhitespace(v.obj.unparsedData);
     if (s.length == 0) {
@@ -150,11 +159,26 @@ package bool parseNextPair(JValue* v, string seekKey = null) @trusted {
     // Wrap it as unparsed value.
     JValue child = JValue.mkUnparsed(s);
     
-    // Skip to next token to update s for parent
-    skipValue(s);
-    
-    if (stripJSONWhitespace(s).length == 0) {
-        throw new JSONPartialException("Pending stream: value might be incomplete");
+    // Strings, objects and arrays are delimited: register them even if still incomplete,
+    // so that their already-received content can be navigated lazily.
+    if (s.length > 0 && isDelimitedStart(s[0])) {
+        string afterValue = s;
+        try {
+            skipValue(afterValue);
+        } catch (JSONPartialException e) {
+            v.obj.pairs ~= JObject.Pair(key, child);
+            v.obj.unparsedData = s;
+            v.obj.hasPendingTail = true;
+            return true;
+        }
+        s = afterValue;
+    } else {
+        // Skip to next token to update s for parent
+        skipValue(s);
+        
+        if (stripJSONWhitespace(s).length == 0) {
+            throw new JSONPartialException("Pending stream: value might be incomplete");
+        }
     }
     
     v.obj.pairs ~= JObject.Pair(key, child);
@@ -166,6 +190,15 @@ package bool parseNextPair(JValue* v, string seekKey = null) @trusted {
 
 package bool parseNextElement(JValue* v) @trusted {
     if (v.type != JType.Array || v.arr.isFullyParsed) return false;
+
+    if (v.arr.hasPendingTail) {
+        // Last element already registered: just advance past it (now complete)
+        string tail = v.arr.unparsedData;
+        skipValue(tail);
+        v.arr.unparsedData = tail;
+        v.arr.hasPendingTail = false;
+        return true;
+    }
     
     string s = stripJSONWhitespace(v.arr.unparsedData);
     if (s.length == 0) {
@@ -189,17 +222,37 @@ package bool parseNextElement(JValue* v) @trusted {
     // s points to the start of the value.
     JValue child = JValue.mkUnparsed(s);
     
-    // Skip to next token to update s
-    skipValue(s);
-    
-    if (stripJSONWhitespace(s).length == 0) {
-        throw new JSONPartialException("Pending stream: value might be incomplete");
+    // Strings, objects and arrays are delimited: register them even if still incomplete
+    if (s.length > 0 && isDelimitedStart(s[0])) {
+        string afterValue = s;
+        try {
+            skipValue(afterValue);
+        } catch (JSONPartialException e) {
+            v.arr.elements ~= child;
+            v.arr.unparsedData = s;
+            v.arr.hasPendingTail = true;
+            return true;
+        }
+        s = afterValue;
+    } else {
+        // Skip to next token to update s
+        skipValue(s);
+        
+        if (stripJSONWhitespace(s).length == 0) {
+            throw new JSONPartialException("Pending stream: value might be incomplete");
+        }
     }
     
     v.arr.elements ~= child;
     v.arr.unparsedData = s;
     
     return true;
+}
+
+/++ True if `c` opens a value whose end is explicitly delimited (string, object, array). ++/
+pragma(inline, true)
+private bool isDelimitedStart(char c) @safe pure nothrow @nogc {
+    return c == '{' || c == '[' || c == '"';
 }
 
 /++  Skips the current JSON value and updates `s` to point after it.

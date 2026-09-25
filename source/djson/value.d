@@ -97,6 +97,7 @@ struct JObject {
     Pair[] pairs;       /++ Storage for key-value pairs ++/
     string unparsedData; /++ Remaining unparsed string data (lazy) ++/
     bool isFullyParsed;  /++ True if all fields have been evaluated ++/
+    bool hasPendingTail; /++ True if the last pair is registered but its value is still incomplete ++/
 
     /++ Cast to string (JSON representation) or std.json.JSONValue. ++/
     T opCast(T)() {
@@ -120,6 +121,7 @@ struct JArray {
     JValue[] elements;   /++ Storage for array elements ++/
     string unparsedData; /++ Remaining unparsed string data (lazy) ++/
     bool isFullyParsed;  /++ True if all elements have been evaluated ++/
+    bool hasPendingTail; /++ True if the last element is registered but still incomplete ++/
 
     /++ Cast to string (JSON representation) or std.json.JSONValue. ++/
     T opCast(T)() {
