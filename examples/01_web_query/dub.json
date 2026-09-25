@@ -1,0 +1,8 @@
+{
+    "name": "web_query",
+    "description": "DJSON web query example",
+    "dependencies": {
+        "djson": {"path": "../.."},
+        "serverino": "~>0.8.0"
+    }
+}

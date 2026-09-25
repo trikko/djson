@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DJSON Web Query Example</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+  <style>
+    body { padding-top: 2rem; }
+    .status-complete { color: #2ecc71; font-weight: bold; }
+    .status-partial { color: #f39c12; font-weight: bold; }
+    .status-error { color: #e74c3c; font-weight: bold; }
+    .status-extra { color: #3498db; font-weight: bold; }
+    pre { border-radius: 8px; margin-top: 1rem; }
+    textarea { font-family: monospace; white-space: pre; }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <hgroup>
+      <h2>DJSON Web Query</h2>
+      <h3>Querying truncated or streaming JSON seamlessly</h3>
+    </hgroup>
+    
+    <div class="grid">
+      <div>
+        <label for="json_data">JSON Data (Incomplete / Stream)</label>
+        <textarea id="json_data" name="json_data" rows="16">{
+  "users": [
+    {
+      "id": 1,
+      "name": "Alice",
+      "role": "Admin"
+    },
+    {
+      "id": 2,
+      "name": "Bob",
+      "role": "User"
+    },
+    {
+      "id": 3,
+      "name": "Cha</textarea>
+        
+        <label for="json_query">JSON Query Path</label>
+        <input type="text" id="json_query" name="json_query" value="/users/1/name">
+        
+        <button id="btn-execute" onclick="executeQuery()">Execute Query</button>
+      </div>
+      
+      <div>
+        <label>Response Status: <span id="response-status">Waiting...</span></label>
+        <pre><code id="response-result" class="language-json">// The query result will appear here</code></pre>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+  <script>
+    async function executeQuery() {
+      const btn = document.getElementById('btn-execute');
+      const jsonData = document.getElementById('json_data').value;
+      const jsonQuery = document.getElementById('json_query').value;
+      const statusEl = document.getElementById('response-status');
+      const resultEl = document.getElementById('response-result');
+
+      btn.setAttribute('aria-busy', 'true');
+
+      const formData = new URLSearchParams();
+      formData.append('json_data', jsonData);
+      formData.append('json_query', jsonQuery);
+
+      try {
+        const response = await fetch('/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formData
+        });
+        const data = await response.json();
+        
+        // Update status
+        statusEl.textContent = data.status.toUpperCase();
+        statusEl.className = 'status-' + data.status;
+
+        // Update result with syntax highlighting
+        let resultText = "";
+        if (data.error) {
+           resultText = "// Error\n" + data.error;
+        } else {
+           resultText = JSON.stringify(data.result, null, 2);
+        }
+        if (data.warning) {
+          const extraLines = (data.extra || "").split(/\r?\n/).map(l => "//   " + l).join("\n");
+          resultText = "// Warning: " + data.warning + ":\n" + extraLines + "\n\n" + resultText;
+        }
+        
+        resultEl.textContent = resultText;
+        Prism.highlightElement(resultEl);
+
+      } catch (err) {
+        statusEl.textContent = "ERROR";
+        statusEl.className = "status-error";
+        resultEl.textContent = "// Request failed\n" + err.toString();
+        Prism.highlightElement(resultEl);
+      } finally {
+        btn.removeAttribute('aria-busy');
+      }
+    }
+  </script>
+</body>
+</html>

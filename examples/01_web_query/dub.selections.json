@@ -1,0 +1,7 @@
+{
+	"fileVersion": 1,
+	"versions": {
+		"djson": {"path":"../../"},
+		"serverino": "0.8.3"
+	}
+}
