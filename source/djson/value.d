@@ -31,7 +31,7 @@ import std.format;
 import std.conv;
 import std.traits;
 import std.string : split;
-import std.array : Appender, appender;
+import std.array : Appender, appender, join;
 import std.json : JSONValue, JSONType;
 import djson.parser;
 
@@ -379,14 +379,18 @@ struct JValue {
             if (p.key == key) return &p.value;
         }
         
-        while(!obj.isFullyParsed) {
-            if (djson.parser.parseNextPair(&this, key)) {
-                if (obj.pairs[$-1].key == key) {
-                    return &obj.pairs[$-1].value;
+        try {
+            while(!obj.isFullyParsed) {
+                if (djson.parser.parseNextPair(&this, key)) {
+                    if (obj.pairs[$-1].key == key) {
+                        return &obj.pairs[$-1].value;
+                    }
+                } else {
+                    break;
                 }
-            } else {
-                break;
             }
+        } catch (JSONPartialException e) {
+            throw new JSONPartialException("Incomplete JSON: key '" ~ key ~ "' not yet available");
         }
         return null;
     }
@@ -398,8 +402,13 @@ struct JValue {
         if (type != JType.Array) return null;
         if (index < arr.elements.length) return &arr.elements[index];
         
-        while(!arr.isFullyParsed && arr.elements.length <= index) {
-            djson.parser.parseNextElement(&this);
+        try {
+            while(!arr.isFullyParsed && arr.elements.length <= index) {
+                djson.parser.parseNextElement(&this);
+            }
+        } catch (JSONPartialException e) {
+            import std.conv : to;
+            throw new JSONPartialException("Incomplete JSON: index " ~ index.to!string ~ " not yet available");
         }
         
         if (index < arr.elements.length) return &arr.elements[index];
@@ -532,7 +541,9 @@ struct JValue {
         }
         
         JValue* current = &this;
+        string[] visited;
         foreach(arg; args) {
+            visited ~= format("'%s'", arg);
             static if (is(typeof(arg) == string)) {
                 current = current.getPtr(arg);
             } else static if (isIntegral!(typeof(arg))) {
@@ -540,7 +551,7 @@ struct JValue {
             } else {
                 static assert(0, "Invalid argument type for get!T");
             }
-            if (!current) throw new JSONException(format("Path segment '%s' not found", arg));
+            if (!current) throw new JSONException("Path not found: " ~ visited.join(" » "));
         }
         return current.as!T();
     }
@@ -554,23 +565,26 @@ struct JValue {
         if (path == "/" || path.length == 0) return as!T();
         string[] parts = path[1..$].split("/");
         JValue* current = &this;
+        string[] visited;
         foreach(part; parts) {
             string key = decodePointerToken(part);
+            visited ~= "'" ~ key ~ "'";
             current.evaluateSelf();
             if (current.type == JType.Object) {
                 current = current.getPtr(key);
             } else if (current.type == JType.Array) {
                 // Try to parse array index
+                size_t idx;
                 try {
-                    size_t idx = to!size_t(key);
-                    current = current.getPtr(idx);
+                    idx = to!size_t(key);
                 } catch (Exception) {
                     throw new JSONException("Expected numeric index for array, got '" ~ key ~ "'");
                 }
+                current = current.getPtr(idx);
             } else {
                 throw new JSONException("Cannot traverse primitive value at " ~ key);
             }
-            if (!current) throw new JSONException("Path not found: " ~ key);
+            if (!current) throw new JSONException("Path not found: " ~ visited.join(" » "));
         }
         return current.as!T();
     }
@@ -615,13 +629,14 @@ struct JValue {
                 current = current.getPtr(seg.index);
             } else {
                 if (current.type == JType.Array) {
+                    size_t idx;
                     try {
                         import std.conv : to;
-                        size_t idx = to!size_t(seg.key);
-                        current = current.getPtr(idx);
+                        idx = to!size_t(seg.key);
                     } catch (Exception) {
                         return null; // Not a valid index for an array
                     }
+                    current = current.getPtr(idx);
                 } else {
                     current = current.getPtr(seg.key);
                 }
@@ -691,12 +706,17 @@ struct JValue {
             string part = decodePointerToken(parts[i]);
             if (i == parts.length - 1) {
                 if (current.type == JType.Array || current.type == JType.Null) {
+                    bool isNum = false;
+                    size_t idx;
                     try {
                         import std.conv : to;
-                        size_t idx = to!size_t(part);
+                        idx = to!size_t(part);
+                        isNum = true;
+                    } catch (Exception e) {}
+                    if (isNum) {
                         (*current)[idx] = value; // forces array if null
                         return;
-                    } catch (Exception e) {}
+                    }
                 }
                 (*current)[part] = value; // fallback to object string key
             } else {
@@ -725,14 +745,15 @@ struct JValue {
                         current = &current.obj.pairs[$-1].value;
                     }
                 } else if (current.type == JType.Array) {
+                    size_t idx;
                     try {
-                        size_t idx = to!size_t(part);
-                        while(!current.arr.isFullyParsed && current.arr.elements.length <= idx) djson.parser.parseNextElement(current);
-                        if (current.arr.elements.length <= idx) current.arr.elements.length = idx + 1;
-                        current = &current.arr.elements[idx];
+                        idx = to!size_t(part);
                     } catch (Exception e) {
                         throw new JSONException("Expected numeric index for array, got '" ~ part ~ "'");
                     }
+                    while(!current.arr.isFullyParsed && current.arr.elements.length <= idx) djson.parser.parseNextElement(current);
+                    if (current.arr.elements.length <= idx) current.arr.elements.length = idx + 1;
+                    current = &current.arr.elements[idx];
                 } else {
                     throw new JSONException("Cannot traverse primitive value at " ~ part);
                 }

@@ -252,13 +252,15 @@ private void setBySegments(ref JValue root, JSONKeySegment[] segs, JValue val) {
                 (*current)[seg.index] = val;
             } else {
                 if (current.type == JType.Array) {
+                    bool isNum = false;
+                    size_t idx;
                     try {
                         import std.conv : to;
-                        size_t idx = to!size_t(seg.key);
-                        (*current)[idx] = val;
-                    } catch (Exception) {
-                        (*current)[seg.key] = val;
-                    }
+                        idx = to!size_t(seg.key);
+                        isNum = true;
+                    } catch (Exception) {}
+                    if (isNum) (*current)[idx] = val;
+                    else (*current)[seg.key] = val;
                 } else {
                     (*current)[seg.key] = val;
                 }

@@ -1053,3 +1053,27 @@ unittest {
     assert(nums.get!long(0) == 1);
     assert(collectException!JSONPartialException(nums.get!long(1)) !is null);
 }
+
+unittest {
+    // Partial: out-of-range index on an incomplete array reports a partial stream
+    auto json = parseJSON(`{"users": [{"name": "Alice"}, {"name": "Bob"}, {"name": "Cha`);
+    auto e = collectException!JSONException(json.get!string("/users/3/name"));
+    assert(e !is null && cast(JSONPartialException) e !is null);
+    assert(e.msg == "Incomplete JSON: index 3 not yet available");
+    auto ek = collectException!JSONPartialException(json.get!string("/users/2/pizza"));
+    assert(ek !is null && ek.msg == "Incomplete JSON: key 'pizza' not yet available");
+    assert(collectException!JSONPartialException(json.set("x", "/users/3/name")) !is null);
+
+    json.appendData(`rlie"}]}`);
+    auto e2 = collectException!JSONException(json.get!string("/users/3/name"));
+    assert(e2 !is null && cast(JSONPartialException) e2 is null); // now a plain "not found"
+}
+
+unittest {
+    // "Path not found" reports the full path up to the missing segment
+    auto json = parseJSON(`{"users": [{"name": "Alice"}, {"": "empty key"}]}`);
+    assert(collectException!JSONException(json.get!string("/users/0/")).msg == "Path not found: 'users' » '0' » ''");
+    assert(collectException!JSONException(json.get!string("/users/5/name")).msg == "Path not found: 'users' » '5'");
+    assert(collectException!JSONException(json.get!string("users", 0, "age")).msg == "Path not found: 'users' » '0' » 'age'");
+    assert(json.get!string("/users/1/") == "empty key");
+}
