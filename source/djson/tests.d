@@ -1200,3 +1200,20 @@ unittest {
     assert(h.safe!int("a", "b", 0) == 1 && !h.safe!string("a", "b", 0).found);
     assert(collectException!JSONPartialException(parseJSON(`{"a": {"b": [1, `).has("a", "b", 5)) !is null);
 }
+
+unittest {
+    // Short decimals are correctly rounded (std.conv.to!double is off by one ulp on these)
+    assert(parseJSON(`6.482904`).get!double == 0x1.9ee7e62dc6e2bp+2);
+    assert(parseJSON(`76.669041`).get!double == 0x1.32ad19157abb9p+6);
+    assert(parseJSON(`408792230e22`).get!double == 0x1.9cc65093d4c6bp+101);
+
+    // Fast path boundaries and fallbacks
+    assert(parseJSON(`1e22`).get!double == 1e22 && parseJSON(`1e23`).get!double == 1e23);
+    assert(parseJSON(`1e-22`).get!double == 1e-22 && parseJSON(`0.1`).get!double == 0.1);
+    assert(parseJSON(`123456789012345.6`).get!double == 123456789012345.6);
+    assert(parseJSON(`-4.556838993611245e-30`).get!double == -4.556838993611245e-30);
+    assert(parseJSON(`0.00000000000000000000000000001`).get!double == 1e-29);
+    auto negZero = parseJSON(`-0.0`).get!double;
+    assert(negZero == 0 && negZero is -0.0);
+    assert(parseJSON(`0.0e5`).get!double is 0.0);
+}

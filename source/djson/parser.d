@@ -29,7 +29,6 @@ module djson.parser;
 import djson.value;
 import std.string;
 import std.conv;
-import std.ascii;
 import std.array;
 import std.exception;
 
@@ -96,7 +95,7 @@ package void evaluateNode(JValue* v) @trusted {
         } else {
             throwInvalidLiteral(s, "null", "Invalid null");
         }
-    } else if (isDigit(c) || c == '-') {
+    } else if (isDigitChar(c) || c == '-') {
         string currentS = s;
         double numVal = consumeNumber(currentS);
         s = currentS;
@@ -171,7 +170,7 @@ package bool parseNextPair(JValue* v) @trusted {
         try {
             skipValue(afterValue);
         } catch (JSONPartialException e) {
-            v.obj.pairs ~= JObject.Pair(key, child);
+            appendChild(v.obj.pairs, JObject.Pair(key, child));
             v.obj.unparsedData = s;
             v.obj.hasPendingTail = true;
             return true;
@@ -186,7 +185,7 @@ package bool parseNextPair(JValue* v) @trusted {
         }
     }
     
-    v.obj.pairs ~= JObject.Pair(key, child);
+    appendChild(v.obj.pairs, JObject.Pair(key, child));
     v.obj.unparsedData = s;
     return true;
 }
@@ -231,7 +230,7 @@ package bool parseNextElement(JValue* v) @trusted {
         try {
             skipValue(afterValue);
         } catch (JSONPartialException e) {
-            v.arr.elements ~= child;
+            appendChild(v.arr.elements, child);
             v.arr.unparsedData = s;
             v.arr.hasPendingTail = true;
             return true;
@@ -246,7 +245,7 @@ package bool parseNextElement(JValue* v) @trusted {
         }
     }
     
-    v.arr.elements ~= child;
+    appendChild(v.arr.elements, child);
     v.arr.unparsedData = s;
     
     return true;
@@ -256,6 +255,19 @@ package bool parseNextElement(JValue* v) @trusted {
 private void throwInvalidLiteral(string s, string literal, string msg) @safe {
     if (s.length < literal.length && literal.startsWith(s)) throw new JSONPartialException("Unterminated " ~ literal);
     throw new JSONSyntaxException(msg);
+}
+
+/++ Appends a child, reserving room for a few more on the first append to skip the early reallocations. ++/
+pragma(inline, true)
+private void appendChild(T)(ref T[] list, T child) @safe pure nothrow {
+    if (list.length == 0) list.reserve(4);
+    list ~= child;
+}
+
+/++ ASCII digit check on a `char` (std.ascii.isDigit takes a dchar and is not inlined across modules). ++/
+pragma(inline, true)
+private bool isDigitChar(char c) @safe pure nothrow @nogc {
+    return c >= '0' && c <= '9';
 }
 
 /++ True if `c` opens a value whose end is explicitly delimited (string, object, array). ++/
@@ -308,7 +320,7 @@ public void skipValue(ref string s) @trusted {
     } else if (c == 'n') { // null
         if (s.length < 4) throw new JSONPartialException("Unterminated null");
         s = s[4..$];
-    } else if (isDigit(c) || c == '-') { // number
+    } else if (isDigitChar(c) || c == '-') { // number
         size_t i = scanNumber(s);
         s = s[i..$];
     } else {
@@ -323,7 +335,7 @@ private size_t scanNumber(string s) @safe {
         i++;
     } else if (i < s.length && s[i] >= '1' && s[i] <= '9') {
         i++;
-        while(i < s.length && isDigit(s[i])) i++;
+        while(i < s.length && isDigitChar(s[i])) i++;
     } else if (i >= s.length) {
         throw new JSONPartialException("Unterminated number");
     } else {
@@ -333,17 +345,68 @@ private size_t scanNumber(string s) @safe {
     if (i < s.length && s[i] == '.') {
         i++;
         if (i >= s.length) throw new JSONPartialException("Unterminated number");
-        if (!isDigit(s[i])) throw new JSONSyntaxException("Invalid number format: expected digit after .");
-        while(i < s.length && isDigit(s[i])) i++;
+        if (!isDigitChar(s[i])) throw new JSONSyntaxException("Invalid number format: expected digit after .");
+        while(i < s.length && isDigitChar(s[i])) i++;
     }
     if (i < s.length && (s[i] == 'e' || s[i] == 'E')) {
         i++;
         if (i < s.length && (s[i] == '+' || s[i] == '-')) i++;
         if (i >= s.length) throw new JSONPartialException("Unterminated number");
-        if (!isDigit(s[i])) throw new JSONSyntaxException("Invalid number format: expected digit after e/E");
-        while(i < s.length && isDigit(s[i])) i++;
+        if (!isDigitChar(s[i])) throw new JSONSyntaxException("Invalid number format: expected digit after e/E");
+        while(i < s.length && isDigitChar(s[i])) i++;
     }
     return i;
+}
+
+private static immutable double[23] exactPowersOf10 = [
+    1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11,
+    1e12, 1e13, 1e14, 1e15, 1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22
+];
+
+/++ Converts an already validated JSON number with at most 15 significant digits and a
+    decimal exponent within ±22. Returns false when the input needs the slow path. ++/
+private bool tryFastFloat(string num, out double result) @safe pure nothrow @nogc {
+    size_t i = 0;
+    bool neg = false;
+    if (num[0] == '-') { neg = true; i++; }
+
+    ulong mantissa = 0;
+    int digits = 0;   // significant digits (leading zeros excluded)
+    int exp10 = 0;
+
+    for (; i < num.length && isDigitChar(num[i]); i++) {
+        if (mantissa == 0 && num[i] == '0') continue;
+        if (++digits > 15) return false;
+        mantissa = mantissa * 10 + (num[i] - '0');
+    }
+    if (i < num.length && num[i] == '.') {
+        for (i++; i < num.length && isDigitChar(num[i]); i++) {
+            exp10--;
+            if (mantissa == 0 && num[i] == '0') continue;
+            if (++digits > 15) return false;
+            mantissa = mantissa * 10 + (num[i] - '0');
+        }
+    }
+    if (i < num.length) { // 'e' or 'E'
+        i++;
+        bool expNeg = false;
+        if (num[i] == '+' || num[i] == '-') { expNeg = num[i] == '-'; i++; }
+        int e = 0;
+        for (; i < num.length; i++) {
+            if (e > 1000) return false;
+            e = e * 10 + (num[i] - '0');
+        }
+        exp10 += expNeg ? -e : e;
+    }
+
+    double m = cast(double)mantissa;
+    if (mantissa == 0) result = 0.0;
+    else if (exp10 >= 0 && exp10 <= 22) result = m * exactPowersOf10[exp10];
+    else if (exp10 < 0 && exp10 >= -22) result = m / exactPowersOf10[-exp10];
+    else return false;
+
+    if (neg) result = -result;
+    return true;
 }
 
 /++ Consumes a number from string and returns it, mutating s ++/
@@ -375,6 +438,14 @@ private double consumeNumber(ref string s) @trusted {
         }
     }
 
+    // Fast float path (Clinger): exact when mantissa and power of ten are both exact doubles
+    {
+        double fast;
+        if (tryFastFloat(s[0..len], fast)) {
+            s = s[len..$];
+            return fast;
+        }
+    }
     // Float path: use to!double
     string numStr = s[0..len];
     s = s[len..$];
@@ -536,7 +607,7 @@ package JValue parseValueFull(ref string s, uint depth = 0) @trusted {
             return v;
         }
         throw new JSONSyntaxException("Invalid null");
-    } else if (isDigit(c) || c == '-') {
+    } else if (isDigitChar(c) || c == '-') {
         JValue v;
         v.type = JType.Number;
         v.number = consumeNumber(s);
@@ -571,7 +642,7 @@ private JValue parseObjectFull(ref string s, uint depth) @trusted {
         s = s[1..$]; // skip ':'
 
         JValue child = parseValueFull(s, depth);
-        v.obj.pairs ~= JObject.Pair(key, child);
+        appendChild(v.obj.pairs, JObject.Pair(key, child));
 
         s = stripJSONWhitespace(s);
         if (s.length == 0) throw new JSONPartialException("Unterminated object");
@@ -600,7 +671,7 @@ private JValue parseArrayFull(ref string s, uint depth) @trusted {
 
     while (true) {
         JValue child = parseValueFull(s, depth);
-        v.arr.elements ~= child;
+        appendChild(v.arr.elements, child);
 
         s = stripJSONWhitespace(s);
         if (s.length == 0) throw new JSONPartialException("Unterminated array");
