@@ -1417,7 +1417,40 @@ unittest {
     // Only the parts needed by the query are parsed
     auto lazyDoc = parseJSON(`{"a": {"b": 1}, "c": [}`);
     assert(lazyDoc.select("$.a.b")[0].get!long == 1);
-    assert(collectException!JSONPartialException(parseJSON(`{"a": [1, 2`).select("$.a[*]")) !is null);
+
+    // Partial JSON: select returns what is available and reports whether more may match
+    auto stream = parseJSON(`{"users":[{"name":"Alice"},{"name":"Bo`);
+    auto names = stream.select("$.users[*].name");
+    assert(names.length == 2 && !names.isComplete);
+    assert(names[0].get!string == "Alice");
+    assert(collectException!JSONPartialException(names[1].get!string) !is null); // truncated value
+    assert(stream.select("$..name").length == 2 && !stream.select("$..name").isComplete);
+    assert(stream.select("$.users[0].name").isComplete);
+    auto missing = stream.select("$.users[2].name");
+    assert(missing.empty && !missing.isComplete);
+    assert(stream.select("$.other").empty && !stream.select("$.other").isComplete);
+    assert(stream.select("$.users[-1]").empty);    // the final length is not known yet
+    assert(stream.select("$.users[:1]").length == 1);
+
+    stream.appendData(`b"}, {"name": "Carol"}]}`);
+    names = stream.select("$.users[*].name");
+    assert(names.isComplete && names.map!(v => v.get!string).array == ["Alice", "Bob", "Carol"]);
+    assert(stream.select("$.users[-1].name")[0].get!string == "Carol");
+
+    auto numbers = parseJSON(`{"a": [1, 2`).select("$.a[*]");
+    assert(numbers.length == 1 && !numbers.isComplete); // 2 may still be growing
+    assert(parseJSON(`{"a": 1, "b`).select("$.a").isComplete);
+    assert(parseJSON(`{"a": 1, "b`).select("$.*").length == 1);
+    assert(collectException!JSONSyntaxException(parseJSON(`{"a": 1 "b": 2}`).select("$.b")) !is null);
+
+    // remove() parses lazy parents first, and refuses truncated ones without changing anything
+    auto lazyParent = parseJSON(`{"a": {"b": 1, "c": 2}}`);
+    assert(lazyParent.select("$.a.b").remove() == 1);
+    assert(lazyParent.toJSON() == `{"a":{"c":2}}`);
+    auto truncated = parseJSON(`{"a": [1, 2, 3`);
+    assert(collectException!JSONPartialException(truncated.select("$.a[0]").remove()) !is null);
+    truncated.appendData("]}");
+    assert(truncated.toJSON() == `{"a":[1,2,3]}`);
 
     // Results survive further lazy parsing, and detect structural changes
     auto doc = parseJSON(`{"a": [10, 20, 30], "b": {"c": 1}}`);

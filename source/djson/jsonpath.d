@@ -66,12 +66,20 @@ string pathToString(const(PathItem)[] path) @safe pure {
      Each node is located by its position from the queried node, so results stay
      valid while other parts of the document are read or values are changed.
      Removing members or elements, or replacing a container that holds a result,
-     invalidates the results that depend on it: accessing them throws `JSONException`. ++/
+     invalidates the results that depend on it: accessing them throws `JSONException`.
+
+     On truncated input the nodes available so far are returned and `isComplete` is false. ++/
 struct JSONPathResult {
     private JValue* root;
     private size_t[] positions; // child positions of every match, concatenated
     private size_t[] ends;      // match i spans positions[ends[i - 1] .. ends[i]]
     private size_t first;       // current front, for the range interface
+    private bool complete = true;
+
+    /++  False if the document is truncated where the query needed data (see `JValue.appendData`):
+         more nodes may match once the rest arrives. Nodes whose value is itself truncated are
+         included; reading them throws `JSONPartialException`, like `get`. ++/
+    @property bool isComplete() const @safe pure nothrow @nogc { return complete; }
 
     /++ Number of selected nodes. ++/
     @property size_t length() const @safe pure nothrow @nogc { return ends.length - first; }
@@ -122,7 +130,8 @@ struct JSONPathResult {
     }
 
     /++  Removes the selected nodes from their parents and returns how many were removed.
-         The queried node itself is never removed. The result is empty afterwards. ++/
+         The queried node itself is never removed. The result is empty afterwards.
+         Throws: `JSONPartialException`, without removing anything, if a parent is truncated. ++/
     size_t remove() {
         import std.algorithm : sort, uniq;
         import std.array : array;
@@ -135,6 +144,15 @@ struct JSONPathResult {
 
         // Deepest and rightmost first, so that removing a node never shifts a position still to be removed
         targets = targets.sort!((a, b) => a > b).uniq.array;
+
+        // Lazy parents must be fully parsed first: the parser relies on the children already read.
+        // Parsing only appends, so the positions stay valid. Truncated parents throw here, before any change.
+        foreach (pos; targets) {
+            JValue* parent = resolvePositions(pos[0 .. $ - 1]);
+            if (parent.type == JType.Object) while (!parent.obj.isFullyParsed) parseNextPair(parent);
+            else if (parent.type == JType.Array) while (!parent.arr.isFullyParsed) parseNextElement(parent);
+        }
+
         foreach (pos; targets) {
             JValue* parent = resolvePositions(pos[0 .. $ - 1]);
             size_t p = pos[$ - 1];
@@ -453,25 +471,36 @@ private struct Node {
     size_t[] positions; // child positions from the queried node
 }
 
+/++ State of a running query. ++/
+private struct Query {
+    Node[] output;
+    bool complete = true; // false once any data needed by the query turned out to be truncated
+}
+
 /++  Evaluates a compiled expression from `root`, following RFC 9535 result order.
 
      Children are parsed lazily when a segment has a single name or non-negative index
      selector; otherwise the node's children are parsed completely first, so that
-     pointers already collected into them cannot be moved by later parsing. ++/
+     pointers already collected into them cannot be moved by later parsing.
+
+     Truncated input never throws: the nodes available so far are returned and the
+     result is marked as incomplete. ++/
 package JSONPathResult selectCompiled(JValue* root, const(Segment)[] segments) {
     Node[] nodes = [Node(root, null)];
+    Query q;
     foreach (ref seg; segments) {
-        Node[] next;
+        q.output = null;
         foreach (ref node; nodes) {
-            if (seg.descendant) selectDescendants(node, seg.selectors, next, 0);
-            else applySelectors(node, seg.selectors, next);
+            if (seg.descendant) selectDescendants(q, node, seg.selectors, 0);
+            else applySelectors(q, node, seg.selectors);
         }
-        nodes = next;
+        nodes = q.output;
         if (nodes.length == 0) break;
     }
 
     JSONPathResult result;
     result.root = root;
+    result.complete = q.complete;
     foreach (ref node; nodes) {
         result.positions ~= node.positions;
         result.ends ~= result.positions.length;
@@ -479,51 +508,52 @@ package JSONPathResult selectCompiled(JValue* root, const(Segment)[] segments) {
     return result;
 }
 
-private void selectDescendants(ref Node node, const(Selector)[] selectors, ref Node[] output, uint depth) {
+private void selectDescendants(ref Query q, ref Node node, const(Selector)[] selectors, uint depth) {
     if (depth >= maxNestingDepth) throw new JSONSyntaxException("Nesting too deep");
-    applySelectors(node, selectors, output);
+    applySelectors(q, node, selectors);
 
     JValue* v = node.value;
-    parseChildren(v);
+    parseChildren(q, v); // a truncated container still exposes the children received so far
     size_t count = v.type == JType.Object ? v.obj.pairs.length : v.type == JType.Array ? v.arr.elements.length : 0;
     foreach (p; 0 .. count) {
         Node child = childNode(node, p);
-        selectDescendants(child, selectors, output, depth + 1);
+        selectDescendants(q, child, selectors, depth + 1);
     }
 }
 
-private void applySelectors(ref Node node, const(Selector)[] selectors, ref Node[] output) {
+private void applySelectors(ref Query q, ref Node node, const(Selector)[] selectors) {
     JValue* v = node.value;
-    v.evaluateSelf();
-    if (v.type != JType.Object && v.type != JType.Array) return;
+    if (!evaluate(q, v) || (v.type != JType.Object && v.type != JType.Array)) return;
 
     // A single name or non-negative index can be resolved lazily
     if (selectors.length == 1) {
         const sel = selectors[0];
         if (v.type == JType.Object && (sel.kind == Selector.Kind.name || sel.kind == Selector.Kind.pointerToken)) {
-            ptrdiff_t p = findMember(v, sel.name);
-            if (p >= 0) output ~= childNode(node, p);
+            ptrdiff_t p = findMember(q, v, sel.name);
+            if (p >= 0) q.output ~= childNode(node, p);
             return;
         }
         if (v.type == JType.Array && ((sel.kind == Selector.Kind.index && sel.index >= 0)
                 || (sel.kind == Selector.Kind.pointerToken && sel.tokenIsIndex))) {
             size_t idx = cast(size_t)sel.index;
-            if (v.getPtr(idx)) output ~= childNode(node, idx);
+            if (findElement(q, v, idx)) q.output ~= childNode(node, idx);
             return;
         }
     }
 
-    parseChildren(v);
+    // A truncated container still exposes the children received so far, but its final
+    // length is unknown: selectors counting from the end are skipped
+    bool lengthKnown = parseChildren(q, v);
     foreach (ref sel; selectors) {
         if (v.type == JType.Object) {
             final switch (sel.kind) {
                 case Selector.Kind.name, Selector.Kind.pointerToken:
                     foreach (p, ref pair; v.obj.pairs) {
-                        if (pair.key == sel.name) { output ~= childNode(node, p); break; }
+                        if (pair.key == sel.name) { q.output ~= childNode(node, p); break; }
                     }
                     break;
                 case Selector.Kind.wildcard:
-                    foreach (p; 0 .. v.obj.pairs.length) output ~= childNode(node, p);
+                    foreach (p; 0 .. v.obj.pairs.length) q.output ~= childNode(node, p);
                     break;
                 case Selector.Kind.index, Selector.Kind.slice:
                     break;
@@ -532,17 +562,19 @@ private void applySelectors(ref Node node, const(Selector)[] selectors, ref Node
             long len = cast(long)v.arr.elements.length;
             final switch (sel.kind) {
                 case Selector.Kind.index:
+                    if (sel.index < 0 && !lengthKnown) break;
                     long idx = sel.index < 0 ? len + sel.index : sel.index;
-                    if (idx >= 0 && idx < len) output ~= childNode(node, cast(size_t)idx);
+                    if (idx >= 0 && idx < len) q.output ~= childNode(node, cast(size_t)idx);
                     break;
                 case Selector.Kind.pointerToken:
-                    if (sel.tokenIsIndex && sel.index < len) output ~= childNode(node, cast(size_t)sel.index);
+                    if (sel.tokenIsIndex && sel.index < len) q.output ~= childNode(node, cast(size_t)sel.index);
                     break;
                 case Selector.Kind.wildcard:
-                    foreach (p; 0 .. v.arr.elements.length) output ~= childNode(node, p);
+                    foreach (p; 0 .. v.arr.elements.length) q.output ~= childNode(node, p);
                     break;
                 case Selector.Kind.slice:
-                    applySlice(node, sel, len, output);
+                    bool fromEnd = (sel.hasStart && sel.start < 0) || (sel.hasEnd && sel.end < 0) || sel.step < 0;
+                    if (!fromEnd || lengthKnown) applySlice(q, node, sel, len);
                     break;
                 case Selector.Kind.name:
                     break;
@@ -552,7 +584,7 @@ private void applySelectors(ref Node node, const(Selector)[] selectors, ref Node
 }
 
 /++ Array slice as defined by RFC 9535 (negative bounds count from the end, negative step reverses). ++/
-private void applySlice(ref Node node, ref const Selector sel, long len, ref Node[] output) {
+private void applySlice(ref Query q, ref Node node, ref const Selector sel, long len) {
     long step = sel.step;
     if (step == 0) return;
 
@@ -562,29 +594,61 @@ private void applySlice(ref Node node, ref const Selector sel, long len, ref Nod
     if (step > 0) {
         long lower = clamp(sel.hasStart ? normalize(sel.start) : 0, 0, len);
         long upper = clamp(sel.hasEnd ? normalize(sel.end) : len, 0, len);
-        for (long i = lower; i < upper; i += step) output ~= childNode(node, cast(size_t)i);
+        for (long i = lower; i < upper; i += step) q.output ~= childNode(node, cast(size_t)i);
     } else {
         long upper = clamp(sel.hasStart ? normalize(sel.start) : len - 1, -1, len - 1);
         long lower = clamp(sel.hasEnd ? normalize(sel.end) : -len - 1, -1, len - 1);
-        for (long i = upper; lower < i; i += step) output ~= childNode(node, cast(size_t)i);
+        for (long i = upper; lower < i; i += step) q.output ~= childNode(node, cast(size_t)i);
+    }
+}
+
+/++ Evaluates a lazy node. Returns false (and marks the query incomplete) if its data is truncated. ++/
+private bool evaluate(ref Query q, JValue* v) {
+    try {
+        v.evaluateSelf();
+        return true;
+    } catch (JSONPartialException e) {
+        q.complete = false;
+        return false;
     }
 }
 
 /++ Position of the first member named `key`, parsing the object only as far as needed. ++/
-private ptrdiff_t findMember(JValue* v, string key) {
+private ptrdiff_t findMember(ref Query q, JValue* v, string key) {
     foreach (p, ref pair; v.obj.pairs) {
         if (pair.key == key) return p;
     }
-    while (!v.obj.isFullyParsed && parseNextPair(v)) {
-        if (v.obj.pairs[$ - 1].key == key) return v.obj.pairs.length - 1;
+    try {
+        while (!v.obj.isFullyParsed && parseNextPair(v)) {
+            if (v.obj.pairs[$ - 1].key == key) return v.obj.pairs.length - 1;
+        }
+    } catch (JSONPartialException e) {
+        q.complete = false;
     }
     return -1;
 }
 
-private void parseChildren(JValue* v) {
-    v.evaluateSelf();
-    if (v.type == JType.Object) while (!v.obj.isFullyParsed) parseNextPair(v);
-    else if (v.type == JType.Array) while (!v.arr.isFullyParsed) parseNextElement(v);
+/++ True if the array has an element at `idx`, parsing it only as far as needed. ++/
+private bool findElement(ref Query q, JValue* v, size_t idx) {
+    try {
+        while (!v.arr.isFullyParsed && v.arr.elements.length <= idx) parseNextElement(v);
+    } catch (JSONPartialException e) {
+        q.complete = false;
+    }
+    return idx < v.arr.elements.length;
+}
+
+/++ Parses all the children received so far. Returns false (and marks the query incomplete) if the node is truncated. ++/
+private bool parseChildren(ref Query q, JValue* v) {
+    if (!evaluate(q, v)) return false;
+    try {
+        if (v.type == JType.Object) while (!v.obj.isFullyParsed) parseNextPair(v);
+        else if (v.type == JType.Array) while (!v.arr.isFullyParsed) parseNextElement(v);
+        return true;
+    } catch (JSONPartialException e) {
+        q.complete = false;
+        return false;
+    }
 }
 
 private Node childNode(ref Node node, size_t p) {

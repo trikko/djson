@@ -190,6 +190,21 @@ Supported syntax: `$`, `.name`, `['name']`, `[n]` (negative counts from the end)
 
 Results locate each node by its position, so they stay valid while you read other parts of the document or change values. Removing members or elements invalidates the results that depend on them: accessing one throws `JSONException`.
 
+`select` works on partial JSON too: it returns the nodes available so far and `isComplete` tells whether more may match once the rest of the stream arrives. Nodes whose value is still truncated are included, and reading them throws `JSONPartialException`, like `get`.
+
+```d
+auto json = parseJSON(`{"users": [{"name": "Alice"}, {"name": "Bo`);
+
+auto names = json.select("$.users[*].name");
+names.length;       // 2: "Alice" and the truncated "Bo…"
+names.isComplete;   // false: more users may follow
+
+json.appendData(`b"}, {"name": "Carol"}]}`);
+json.select("$.users[*].name").isComplete; // true: Alice, Bob, Carol
+```
+
+Selectors counting from the end (`[-1]`, `[::-1]`) select nothing until the array is complete.
+
 ### Callback Walker (JSONPath / JSON Pointer)
 
 `walkJSON` reads the document once, without building a tree, and calls a callback for each node selected by a [JSONPath](https://www.rfc-editor.org/rfc/rfc9535) expression (starting with `$`) or a JSON Pointer (starting with `/`, same rules as `get`). Subtrees that no expression can reach are skipped without decoding them, which makes it the fastest way to extract a few fields from large payloads.
