@@ -65,4 +65,6 @@ public import djson.value;
 public import djson.parser;
 public import djson.binding;
 public import djson.builder;
+public import djson.jsonpath;
+public import djson.walk;
 import djson.tests;

@@ -1217,3 +1217,238 @@ unittest {
     assert(negZero == 0 && negZero is -0.0);
     assert(parseJSON(`0.0e5`).get!double is 0.0);
 }
+
+unittest {
+    import std.array : replicate;
+
+    // walkJSON: typed callbacks, only selected nodes are converted
+    string doc = `{"coordinates": [
+        {"x": 1.5, "y": 2, "z": 3, "name": "a", "opts": {"1": [1, true]}},
+        {"y": 4, "x": 2.5, "z": 5, "name": "bè", "opts": {"1": [1, true]}}
+    ], "info": "some info"}`;
+
+    double x = 0, y = 0, z = 0;
+    size_t n;
+    doc.walkJSON!(
+        "$.coordinates[*].x", (double v) { x += v; n++; },
+        "$.coordinates[*].y", (double v) { y += v; },
+        "$.coordinates[*].z", (int v) { z += v; },
+    );
+    assert(n == 2 && x == 4 && y == 6 && z == 8);
+
+    // Paths, unions and descendants
+    string[] seen;
+    doc.walkJSON!("$.coordinates[*]['x','name']", (JValue v, const(PathItem)[] path) {
+        seen ~= pathToString(path) ~ "=" ~ v.toJSON();
+    });
+    assert(seen == [`$['coordinates'][0]['x']=1.5`, `$['coordinates'][0]['name']="a"`,
+                    `$['coordinates'][1]['x']=2.5`, `$['coordinates'][1]['name']="bè"`]);
+
+    string[] names;
+    doc.walkJSON!("$..name", (string s) { names ~= s; });
+    assert(names == ["a", "bè"]);
+
+    size_t trues;
+    doc.walkJSON!("$..[1]", (JValue v) { if (v.safe!bool.found) trues++; });
+    assert(trues == 2); // opts["1"][1] in both elements; coordinates[1] is an object
+
+    // Wildcards on objects and arrays, untyped lambdas receive a JValue
+    size_t members;
+    doc.walkJSON!("$.*", (v) { members++; });
+    assert(members == 2);
+
+    // Selected containers are lazy JValues, reported after their descendants
+    string[] order;
+    doc.walkJSON!(
+        "$.coordinates[1]", (JValue v) { order ~= "object:" ~ v.get!string("name"); },
+        "$.coordinates[1].x", (double v) { order ~= "x"; },
+    );
+    assert(order == ["x", "object:bè"]);
+
+    // Several expressions on the same node run in declaration order
+    string[] calls;
+    doc.walkJSON!("$.info", (string s) { calls ~= "first"; }, "$['info']", (string s) { calls ~= "second"; });
+    assert(calls == ["first", "second"]);
+
+    // Root, stop, slices
+    size_t roots;
+    doc.walkJSON!("$", (JValue v) { roots++; assert(v.get!string("info") == "some info"); });
+    assert(roots == 1);
+
+    long[] picked;
+    `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]`.walkJSON!("$[1:8:3]", (long v) { picked ~= v; });
+    assert(picked == [1, 4, 7]);
+    picked = null;
+    `[0, 1, 2, 3, 4, 5]`.walkJSON!("$[:2, 4:, 3]", (long v) { picked ~= v; });
+    assert(picked == [0, 1, 3, 4, 5]);
+    picked = null;
+    `[0, 1, 2]`.walkJSON!("$[::0]", (long v) { picked ~= v; });
+    assert(picked.length == 0);
+
+    picked = null;
+    `[1, 2, 3, {"broken": ]`.walkJSON!("$[*]", (JValue v) {
+        picked ~= v.get!long;
+        return picked.length == 2 ? WalkControl.stop : WalkControl.next;
+    });
+    assert(picked == [1, 2]);
+
+    // Names only match object members, indices only match array elements
+    size_t hits;
+    `{"0": 1, "a": [10]}`.walkJSON!("$[0]", (JValue v) { hits++; }, "$.a['0']", (JValue v) { hits++; });
+    assert(hits == 0);
+    `{"0": 1, "a": [10]}`.walkJSON!("$['0']", (long v) { hits += v; }, "$.a[0]", (long v) { hits += v; });
+    assert(hits == 11);
+
+    // Escaped keys and quoted names
+    string got;
+    `{"a\"b": "q", "città": "roma", "😀": "smile"}`.walkJSON!(
+        `$['a\"b']`, (string s) { got ~= s; },
+        "$.città", (string s) { got ~= "," ~ s; },
+        `$["😀"]`, (string s) { got ~= "," ~ s; },
+    );
+    assert(got == "q,roma,smile");
+    assert(PathItem("it's").toString() == `['it\'s']` && PathItem(null, 3, true).toString() == "[3]");
+
+    // Errors: conversion, syntax in walked parts, truncation, trailing data
+    assert(collectException!JSONException(`{"a": "x"}`.walkJSON!("$.a", (double v) {})) !is null);
+    assert(collectException!JSONSyntaxException(`{"a": 1 "b": 2}`.walkJSON!("$.b", (double v) {})) !is null);
+    assert(collectException!JSONSyntaxException(`{"a": tru}`.walkJSON!("$.a", (bool v) {})) !is null);
+    assert(collectException!JSONPartialException(`{"a": [1, 2`.walkJSON!("$.a[*]", (double v) {})) !is null);
+    assert(collectException!JSONPartialException(`{"a": {"b": 1`.walkJSON!("$.z", (double v) {})) !is null);
+    assert(collectException!JSONSyntaxException(`{"a": 1} x`.walkJSON!("$.a", (double v) {})) !is null);
+    assert(collectException!JSONException(``.walkJSON!("$.a", (double v) {})) !is null);
+    assert(collectException!JSONSyntaxException(("[".replicate(2000) ~ "]".replicate(2000)).walkJSON!("$..*", (JValue v) {})) !is null);
+
+    // Deep documents are fine when nothing below needs walking
+    size_t deep;
+    (`{"a": 1, "b": ` ~ "[".replicate(5000) ~ "]".replicate(5000) ~ "}").walkJSON!("$.a", (long v) { deep = v; });
+    assert(deep == 1);
+
+    // Invalid expressions are rejected at compile time
+    static assert(!__traits(compiles, `[]`.walkJSON!("$[?(@.a)]", (JValue v) {})));
+    static assert(!__traits(compiles, `[]`.walkJSON!("$[-1]", (JValue v) {})));
+    static assert(!__traits(compiles, `[]`.walkJSON!("a.b", (JValue v) {})));
+    static assert(!__traits(compiles, `[]`.walkJSON!("$.a", (JValue v) {}, "$.b")));
+
+    import djson.jsonpath : compilePattern;
+    foreach (bad; ["", "$.", "$..", "$.1a", "$[01]", "$['a'", "$[a]", "$.a[", "$[1,]", "$.[0]", `$['\q']`, `$['\uD800']`])
+        assert(compilePattern(bad).error !is null, bad);
+    foreach (good; ["$", "$.a.b", "$['a']['b']", "$..a", "$..*", "$..[0]", "$[*]", "$[ 1 , 'x' ]", "$[1:]", "$[::2]", "$[0]"])
+        assert(compilePattern(good).error is null, good);
+    assert(compilePattern("$..a[1:3]").segments.length == 2);
+
+    // JSON Pointers follow the same rules as get(): "/" is the root, numeric tokens match
+    // array indices and member names, ~0 and ~1 are decoded
+    string ptr = `{"users": [{"name": "ann"}, {"name": "bob"}], "1": "one", "a/b": {"~": 7}, "": {"": 8}}`;
+    string[] found;
+    ptr.walkJSON!(
+        "/users/1/name", (string v) { found ~= v; },
+        "/1", (string v) { found ~= v; },
+        "/a~1b/~0", (long v) { found ~= "seven"; },
+        "/users/01/name", (string v) { found ~= "leading zero " ~ v; },
+        "$.users[0].name", (string v) { found ~= v; },
+        "//", (long v) { found ~= "eight"; },
+    );
+    assert(found == ["ann", "bob", "leading zero bob", "one", "seven", "eight"]);
+    assert(parseJSON(ptr).get!string("/users/01/name") == "bob");
+
+    size_t rootCalls;
+    ptr.walkJSON!("/", (JValue v) { rootCalls++; });
+    assert(rootCalls == 1);
+
+    found = null;
+    ptr.walkJSON!("/users/-", (JValue v) { found ~= "past end"; }, "/users/name", (JValue v) { found ~= "no"; });
+    assert(found.length == 0);
+    assert(compilePattern("/users/*").error is null); // "*" is a regular member name in a pointer
+}
+
+unittest {
+    import std.algorithm : map, sum;
+    import std.array : array;
+
+    // select(): examples from RFC 9535, section 1.5
+    string store = `{ "store": {
+        "book": [
+          { "category": "reference", "author": "Nigel Rees", "title": "Sayings of the Century", "price": 8.95 },
+          { "category": "fiction", "author": "Evelyn Waugh", "title": "Sword of Honour", "price": 12.99 },
+          { "category": "fiction", "author": "Herman Melville", "title": "Moby Dick", "isbn": "0-553-21311-3", "price": 8.99 },
+          { "category": "fiction", "author": "J. R. R. Tolkien", "title": "The Lord of the Rings", "isbn": "0-395-19395-8", "price": 22.99 }
+        ],
+        "bicycle": { "color": "red", "price": 399 }
+      } }`;
+    auto json = parseJSON(store);
+
+    string[] authors;
+    foreach (ref v; json.select("$.store.book[*].author")) authors ~= v.get!string;
+    assert(authors == ["Nigel Rees", "Evelyn Waugh", "Herman Melville", "J. R. R. Tolkien"]);
+    assert(json.select("$..author").map!(v => v.get!string).array == authors);
+    assert(json.select("$.store.*").length == 2);
+    assert(json.select("$.store..price").map!(v => v.get!double).array == [8.95, 12.99, 8.99, 22.99, 399]);
+    assert(json.select("$..book[2]")[0].get!string("title") == "Moby Dick");
+    assert(json.select("$..book[-1]")[0].get!string("title") == "The Lord of the Rings");
+    assert(json.select("$..book[0,1]").length == 2 && json.select("$..book[:2]").length == 2);
+    assert(json.select("$..*").length == 27);
+    assert(json.select("$").length == 1 && json.select("$.nothing").empty);
+    assert(json.select("/store/book/0/title")[0].get!string == "Sayings of the Century");
+
+    // Paths of the selected nodes
+    string[] paths;
+    foreach (path, ref v; json.select("$..isbn")) paths ~= pathToString(path);
+    assert(paths == [`$['store']['book'][2]['isbn']`, `$['store']['book'][3]['isbn']`]);
+    assert(pathToString(json.select("$..color").path(0)) == `$['store']['bicycle']['color']`);
+
+    // Nodes are returned by reference and can be modified in place
+    foreach (ref price; json.select("$..price")) price = JValue(price.get!double * 2);
+    assert(json.get!double("/store/bicycle/price") == 798);
+    assert(json.select("$..price").map!(v => v.get!double).sum == 2 * (8.95 + 12.99 + 8.99 + 22.99 + 399));
+
+    // Slices and negative indices (RFC 9535, section 2.3.4)
+    auto arr = parseJSON(`[0, 1, 2, 3, 4, 5, 6]`);
+    long[] ints(string q) { return arr.select(q).map!(v => v.get!long).array; }
+    assert(ints("$[1:3]") == [1, 2]);
+    assert(ints("$[5:]") == [5, 6]);
+    assert(ints("$[1:5:2]") == [1, 3]);
+    assert(ints("$[5:1:-2]") == [5, 3]);
+    assert(ints("$[::-1]") == [6, 5, 4, 3, 2, 1, 0]);
+    assert(ints("$[-2:]") == [5, 6] && ints("$[:-5]") == [0, 1]);
+    assert(ints("$[-1, 0, -8, 9]") == [6, 0]);
+    assert(ints("$[::0]").length == 0 && ints("$[4:2]").length == 0);
+
+    // Only the parts needed by the query are parsed
+    auto lazyDoc = parseJSON(`{"a": {"b": 1}, "c": [}`);
+    assert(lazyDoc.select("$.a.b")[0].get!long == 1);
+    assert(collectException!JSONPartialException(parseJSON(`{"a": [1, 2`).select("$.a[*]")) !is null);
+
+    // Results survive further lazy parsing, and detect structural changes
+    auto doc = parseJSON(`{"a": [10, 20, 30], "b": {"c": 1}}`);
+    auto first = doc.select("$.a[0]");
+    assert(doc.get!long("/b/c") == 1); // parses more of the root object
+    first[0] = JValue(11);
+    assert(doc.get!long("/a/0") == 11);
+    auto last = doc.select("$.a[2]");
+    doc["a"].remove(0);
+    doc["a"].remove(0);
+    assert(collectException!JSONException(last[0]) !is null);
+
+    // remove(): delete all selected nodes at once
+    auto users = parseJSON(`{"users": [{"name": "ann", "password": "x"}, {"name": "bob", "password": "y"}]}`);
+    assert(users.select("$.users[*].password").remove() == 2);
+    assert(users.toJSON() == `{"users":[{"name":"ann"},{"name":"bob"}]}`);
+
+    auto nested = parseJSON(`{"x": {"x": 1}, "y": [{"x": 2}, 3], "z": [1, 2, 3, 4]}`);
+    assert(nested.select("$..x").remove() == 3); // ancestors and descendants together
+    assert(nested.select("$.z[0,0,-1]").remove() == 2); // duplicates are removed once
+    assert(nested.select("$").remove() == 0);
+    assert(nested.toJSON() == `{"y":[{},3],"z":[2,3]}`);
+
+    // Invalid expressions throw
+    assert(collectException!JSONException(json.select("$..book[?@.isbn]")) !is null);
+    assert(collectException!JSONException(json.select("store.book")) !is null);
+    assert(collectException!JSONException(json.select("$[-0]")) !is null);
+    assert(collectException!JSONException(json.select("$[9007199254740992]")) !is null);
+
+    // walkJSON rejects what needs the array length, and points to select()
+    static assert(!__traits(compiles, `[]`.walkJSON!("$[-1]", (JValue v) {})));
+    static assert(!__traits(compiles, `[]`.walkJSON!("$[::-1]", (JValue v) {})));
+    static assert(__traits(compiles, `[]`.walkJSON!("$[1:]", (JValue v) {})));
+}

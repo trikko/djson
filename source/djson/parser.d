@@ -266,7 +266,7 @@ private void appendChild(T)(ref T[] list, T child) @safe pure nothrow {
 
 /++ ASCII digit check on a `char` (std.ascii.isDigit takes a dchar and is not inlined across modules). ++/
 pragma(inline, true)
-private bool isDigitChar(char c) @safe pure nothrow @nogc {
+package bool isDigitChar(char c) @safe pure nothrow @nogc {
     return c >= '0' && c <= '9';
 }
 
@@ -456,7 +456,7 @@ private double consumeNumber(ref string s) @trusted {
     }
 }
 
-private string consumeString(ref string s) @trusted {
+package string consumeString(ref string s) @trusted {
     return consumeStringImpl(s, true);
 }
 

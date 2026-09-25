@@ -8,6 +8,8 @@ A lazy JSON parser for the D programming language. Parses only what you access: 
 - **Eager mode**: call `parseAll()` for a fully-parsed tree when you need everything
 - **Insertion-order preservation**: object keys always iterate in the original JSON order
 - **Fluent access API**: variadic arguments and JSON pointer paths (`/a/b/0`)
+- **JSONPath queries**: `select("$..price")` returns every matching node by reference, parsing only what the query needs
+- **Callback walker**: single pass over the document with JSONPath-selected callbacks, no tree built
 - **Safe access**: `.safe!T()` returns a result with a `.found` flag instead of throwing
 - **Resumable Streaming Parsing**: append data to a partial JSON object and resume parsing seamlessly
 - **Binding**: bind D structs and classes to JSON objects and arrays
@@ -150,6 +152,82 @@ foreach (string key, val; obj) {
 }
 // Output: z = 1, a = 2, m = 3 (insertion order, not alphabetical)
 ```
+
+### Querying with JSONPath
+
+`select` returns the nodes matching a [JSONPath](https://www.rfc-editor.org/rfc/rfc9535) expression. Only the parts of the document needed by the query are parsed. The path-based methods (`get`, `has`, `safe`, `set`, `append`) keep using JSON Pointers, so keys such as `"$ref"` are never ambiguous.
+
+```d
+auto json = parseJSON(`{"store": {"book": [
+    {"title": "Moby Dick", "price": 8.99},
+    {"title": "The Lord of the Rings", "price": 22.99}
+]}}`);
+
+foreach (ref v; json.select("$.store.book[*].title"))
+    writeln(v.get!string);
+
+// The result is a range: it works with std.algorithm
+import std.algorithm : map, sum;
+double total = json.select("$..price").map!(v => v.get!double).sum;
+
+// Negative indices and slices
+auto last = json.select("$.store.book[-1]")[0];
+auto reversed = json.select("$.store.book[::-1]");
+
+// Paths of the selected nodes
+foreach (path, ref v; json.select("$..price"))
+    writeln(pathToString(path), " = ", v); // $['store']['book'][0]['price'] = 8.99
+
+// Nodes are returned by reference: change them in place...
+foreach (ref price; json.select("$..price"))
+    price = JValue(price.get!double * 0.9);
+
+// ...or remove them all at once
+json.select("$..price").remove();
+```
+
+Supported syntax: `$`, `.name`, `['name']`, `[n]` (negative counts from the end), `[*]`, `.*`, descendants (`..name`, `..*`, `..[n]`), unions (`['a','b']`, `[0,2]`) and slices (`[1:5]`, `[::-1]`). Filter expressions (`[?...]`) are not supported yet. `select` also accepts a JSON Pointer (`/store/book/0`).
+
+Results locate each node by its position, so they stay valid while you read other parts of the document or change values. Removing members or elements invalidates the results that depend on them: accessing one throws `JSONException`.
+
+### Callback Walker (JSONPath / JSON Pointer)
+
+`walkJSON` reads the document once, without building a tree, and calls a callback for each node selected by a [JSONPath](https://www.rfc-editor.org/rfc/rfc9535) expression (starting with `$`) or a JSON Pointer (starting with `/`, same rules as `get`). Subtrees that no expression can reach are skipped without decoding them, which makes it the fastest way to extract a few fields from large payloads.
+
+```d
+double x = 0, y = 0;
+size_t n;
+
+text.walkJSON!(
+    "$.coordinates[*].x", (double v) { x += v; n++; },
+    "$.coordinates[*].y", (double v) { y += v; },
+);
+```
+
+- The parameter type selects the conversion, like `get!T` (`double`, `long`, `string`, `bool`, `JValue`, ...). Untyped lambdas receive a `JValue`.
+- Selected objects and arrays are passed as lazy `JValue`s, so you only pay for what you read inside them. They are reported after the callbacks for their own descendants.
+- An optional second parameter receives the path of the node:
+
+```d
+json.walkJSON!("$..price", (double v, const(PathItem)[] path) {
+    writeln(pathToString(path), " = ", v); // $['store']['book'][0]['price'] = 8.95
+});
+```
+
+- Return `WalkControl.stop` from a callback to end the traversal early.
+- When several expressions select the same node, their callbacks run in declaration order.
+- JSON Pointers and JSONPath can be mixed in the same call:
+
+```d
+text.walkJSON!(
+    "/info", (string s) { ... },               // JSON Pointer: exactly one node
+    "$.coordinates[*].x", (double v) { ... },  // JSONPath: many nodes
+);
+```
+
+Supported JSONPath syntax: `$`, `.name`, `['name']`, `[n]`, `[*]`, `.*`, descendants (`..name`, `..*`, `..[n]`), unions (`['a','b']`, `[0,2]`) and slices with non-negative bounds (`[1:5]`, `[::2]`). Filters (`[?...]`), negative indices and negative slice steps need data that is not available in a single pass: they are rejected at compile time, like any invalid expression. Use `select` when you need them.
+
+As with lazy parsing, subtrees that are skipped are not validated.
 
 ### Mutation
 

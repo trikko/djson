@@ -34,6 +34,7 @@ import std.string : split;
 import std.array : Appender, appender, join;
 import std.json : JSONValue, JSONType;
 import djson.parser;
+import djson.jsonpath;
 
 /++ Exception thrown on JSON parsing or traversal errors. ++/
 class JSONException : Exception {
@@ -721,6 +722,15 @@ struct JValue {
          Examples: `json.has("user", "id")`, `json.has("/tags/0")`. ++/
     bool has(Args...)(Args args) if (Args.length > 0) {
         return safe!JValue(args).found;
+    }
+
+    /++  Selects the nodes matching a JSONPath expression (RFC 9535), or a JSON Pointer.
+         Only the parts of the document needed by the query are parsed.
+         Example: `foreach (ref price; json.select("$.store.book[*].price")) { ... }`
+         Throws: `JSONException` if the expression is invalid. See `djson.jsonpath` for the
+         supported syntax and for the lifetime of the result. ++/
+    JSONPathResult select(string path) {
+        return selectCompiled(&this, compileOrThrow(path).segments);
     }
 
     /++ Human-readable path used in error messages, e.g. `'users' » '0' » 'name'`. ++/
