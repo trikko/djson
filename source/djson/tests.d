@@ -1139,3 +1139,64 @@ unittest {
     assert(collectException!JSONSyntaxException(parseJSONComplete(`{"a": 1} xyz`)) !is null);
     assert(parseJSONComplete(`{"a": 1}   `).get!long("a") == 1);
 }
+
+// Regression tests: null promotion, streaming boundaries, number output, \u escapes, nesting depth
+unittest {
+    import std.exception : collectException;
+    import std.array : replicate;
+
+    // A lazily evaluated null can be promoted to object/array
+    auto j = parseJSON(`{"a": null, "b": null, "c": null, "d": 1}`);
+    j["a"]["x"] = 1;
+    j["b"][1] = 2;
+    j.set(3, "c", "y", "z");
+    assert(j.toJSON() == `{"a":{"x":1},"b":[null,2],"c":{"y":{"z":3}},"d":1}`);
+
+    // Numbers and literals split across chunks are incomplete, not invalid
+    foreach (chunk; [`{"a": 1.`, `{"a": -`, `{"a": 1e`, `{"a": 1e+`]) {
+        auto p = parseJSON(chunk);
+        assert(collectException!JSONPartialException(p.get!double("a")) !is null, chunk);
+        p.appendData(`5, "b": 2}`);
+        assert(p.get!long("b") == 2);
+    }
+    auto lit = parseJSON(`tru`);
+    assert(collectException!JSONPartialException(lit.get!bool) !is null);
+    lit.appendData(`e`);
+    assert(lit.get!bool == true);
+    assert(collectException!JSONSyntaxException(parseJSON(`trux`).get!bool) !is null);
+
+    // Streaming keeps working when data arrives in many small chunks
+    auto s = parseJSON(`{"list": [`);
+    foreach (i; 0 .. 50) s.appendData(i ? `, {"v": "x` : `{"v": "x`), s.appendData(`"}`);
+    s.appendData(`], "end": true}`);
+    assert(s["list"].length == 50);
+    assert(s.get!string("list", 49, "v") == "x");
+    assert(s.get!bool("end"));
+
+    // Numbers round-trip exactly; NaN/infinity are written as null
+    foreach (d; [3.14159265358979, 0.1, 1.0 / 3, 1e-300, 1e300, -2.5, 1e20]) {
+        assert(parseJSON(JValue(d).toJSON()).get!double == d);
+    }
+    assert(JValue(0.1).toJSON() == "0.1");
+    assert(JValue(double.nan).toJSON() == "null");
+    assert(JValue(-double.infinity).toJSON() == "null");
+
+    // Invalid hex digits in \u escapes are rejected
+    assert(collectException!JSONSyntaxException(parseJSON(`"\u12zz"`).get!string) !is null);
+    assert(parseJSON(`"è😀"`).get!string == "è😀");
+
+    // Escaping does not decode UTF-8 and handles control characters
+    assert(JValue("è\"\x01\n").toJSON() == `"è\"\u0001\n"`);
+
+    // Deep nesting fails cleanly instead of overflowing the stack
+    assert(collectException!JSONSyntaxException(parseJSONComplete("[".replicate(200_000))) !is null);
+    auto deep = parseJSON("[".replicate(200_000));
+    assert(collectException!JSONSyntaxException(deep.parseAll()) !is null);
+    assert(parseJSONComplete("[".replicate(500) ~ "]".replicate(500)).length == 1);
+
+    // has()/safe() do not throw on missing paths, but still report incomplete data
+    auto h = parseJSON(`{"a": {"b": [1, 2]}}`);
+    assert(h.has("a", "b", 1) && !h.has("a", "b", 2) && !h.has("a", "zz") && !h.has("/a/b/x"));
+    assert(h.safe!int("a", "b", 0) == 1 && !h.safe!string("a", "b", 0).found);
+    assert(collectException!JSONPartialException(parseJSON(`{"a": {"b": [1, `).has("a", "b", 5)) !is null);
+}

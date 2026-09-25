@@ -114,6 +114,7 @@ T fromJSON(T)(JValue v) {
     } else static if (isArray!T) {
         alias E = ForeachType!T;
         T result;
+        result.reserve(v.length);
         foreach(el; v) {
             result ~= fromJSON!E(el);
         }
@@ -140,17 +141,7 @@ T fromJSON(T)(JValue v) {
             // 1. Check if included
             static if (isIncluded!(T, member)) {
                 // 2. Determine JSON key path
-                JSONKeySegment[] keyPath = [JSONKeySegment(member)];
-                static if (hasUDA!(__traits(getMember, T, member), JSON) || hasUDA!(__traits(getMember, T, member), JSONOptional)) {
-                    foreach(U; AliasSeq!(JSON, JSONOptional)) {
-                        foreach(uda; getUDAs!(__traits(getMember, T, member), U)) {
-                            static if (!is(uda)) {
-                                if (uda.segments.length > 0)
-                                    keyPath = uda.segments;
-                            }
-                        }
-                    }
-                }
+                alias keyPath = keyPathOf!(T, member);
 
                 // 3. Handle existence
                 JValue* keyPtr = v.getPtrBySegments(keyPath);
@@ -218,17 +209,7 @@ JValue toJSON(T)(T value) {
                 }
 
                 // 3. Determine JSON key path
-                JSONKeySegment[] keyPath = [JSONKeySegment(member)];
-                static if (hasUDA!(__traits(getMember, T, member), JSON) || hasUDA!(__traits(getMember, T, member), JSONOptional)) {
-                    foreach(U; AliasSeq!(JSON, JSONOptional)) {
-                        foreach(uda; getUDAs!(__traits(getMember, T, member), U)) {
-                            static if (!is(uda)) {
-                                if (uda.segments.length > 0)
-                                    keyPath = uda.segments;
-                            }
-                        }
-                    }
-                }
+                alias keyPath = keyPathOf!(T, member);
 
                 // 4. Write at path (merges intermediate nodes)
                 setBySegments(root, keyPath, val);
@@ -242,7 +223,7 @@ JValue toJSON(T)(T value) {
 
 /++  Traverse a JValue following a runtime array of JSONKeySegment.
      Returns null if any segment is not found. ++/
-private void setBySegments(ref JValue root, JSONKeySegment[] segs, JValue val) {
+private void setBySegments(ref JValue root, const(JSONKeySegment)[] segs, JValue val) {
     assert(segs.length > 0);
     JValue* current = &root;
     foreach (i, seg; segs) {
@@ -289,8 +270,7 @@ private void setBySegments(ref JValue root, JSONKeySegment[] segs, JValue val) {
 
             if (useIndex) {
                 if (current.type == JType.Null) {
-                    current.type = JType.Array;
-                    current.arr.isFullyParsed = true;
+                    current.becomeArray();
                 }
                 next = current.getPtr(idx);
                 if (next is null) {
@@ -313,11 +293,9 @@ private void setBySegments(ref JValue root, JSONKeySegment[] segs, JValue val) {
                     }
                     
                     if (nextIsIndex) {
-                        current.type = JType.Array;
-                        current.arr.isFullyParsed = true;
+                        current.becomeArray();
                     } else {
-                        current.type = JType.Object;
-                        current.obj.isFullyParsed = true;
+                        current.becomeObject();
                     }
                 }
                 next = current.getPtr(key);
@@ -332,6 +310,24 @@ private void setBySegments(ref JValue root, JSONKeySegment[] segs, JValue val) {
 }
 
 // Helper traits
+
+/++ JSON key path of a field: its name, or the path given by @JSON/@JSONOptional. Computed at compile time. ++/
+private template keyPathOf(T, string member) {
+    static immutable JSONKeySegment[] keyPathOf = computeKeyPath!(T, member)();
+}
+
+private JSONKeySegment[] computeKeyPath(T, string member)() {
+    JSONKeySegment[] keyPath = [JSONKeySegment(member)];
+    foreach(U; AliasSeq!(JSON, JSONOptional)) {
+        foreach(uda; getUDAs!(__traits(getMember, T, member), U)) {
+            static if (!is(uda)) {
+                if (uda.segments.length > 0)
+                    keyPath = uda.segments;
+            }
+        }
+    }
+    return keyPath;
+}
 private template isIncluded(T, string member) {
     alias m = __traits(getMember, T, member);
     enum hasFieldUDA = hasUDA!(m, JSON) || hasUDA!(m, JSONOptional);

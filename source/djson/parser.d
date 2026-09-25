@@ -64,11 +64,13 @@ package void evaluateNode(JValue* v) @trusted {
         v.obj.pairs = null;
         v.obj.unparsedData = s[1..$];
         v.obj.isFullyParsed = false;
+        v.obj.hasPendingTail = false;
     } else if (c == '[') {
         v.type = JType.Array;
         v.arr.elements = null;
         v.arr.unparsedData = s[1..$];
         v.arr.isFullyParsed = false;
+        v.arr.hasPendingTail = false;
     } else if (c == '"') {
         string currentS = s[1..$];
         string strVal = consumeString(currentS);
@@ -85,14 +87,14 @@ package void evaluateNode(JValue* v) @trusted {
             v.type = JType.Bool;
             v.boolean = false;
         } else {
-            throw new JSONSyntaxException("Invalid boolean");
+            throwInvalidLiteral(s, c == 't' ? "true" : "false", "Invalid boolean");
         }
     } else if (c == 'n') {
         if (s.startsWith("null")) {
             s = s[4..$];
             v.type = JType.Null;
         } else {
-            throw new JSONSyntaxException("Invalid null");
+            throwInvalidLiteral(s, "null", "Invalid null");
         }
     } else if (isDigit(c) || c == '-') {
         string currentS = s;
@@ -108,7 +110,7 @@ package void evaluateNode(JValue* v) @trusted {
     if (v.type != JType.Object && v.type != JType.Array) v.primitive.tail = s;
 }
 
-package bool parseNextPair(JValue* v, string seekKey = null) @trusted {
+package bool parseNextPair(JValue* v) @trusted {
     if (v.type != JType.Object || v.obj.isFullyParsed) return false;
 
     if (v.obj.hasPendingTail) {
@@ -186,8 +188,6 @@ package bool parseNextPair(JValue* v, string seekKey = null) @trusted {
     
     v.obj.pairs ~= JObject.Pair(key, child);
     v.obj.unparsedData = s;
-    
-    if (seekKey !is null && key == seekKey) return true;
     return true;
 }
 
@@ -250,6 +250,12 @@ package bool parseNextElement(JValue* v) @trusted {
     v.arr.unparsedData = s;
     
     return true;
+}
+
+/++ Throws JSONPartialException if `s` is a truncated prefix of `literal`, JSONSyntaxException otherwise. ++/
+private void throwInvalidLiteral(string s, string literal, string msg) @safe {
+    if (s.length < literal.length && literal.startsWith(s)) throw new JSONPartialException("Unterminated " ~ literal);
+    throw new JSONSyntaxException(msg);
 }
 
 /++ True if `c` opens a value whose end is explicitly delimited (string, object, array). ++/
@@ -318,19 +324,23 @@ private size_t scanNumber(string s) @safe {
     } else if (i < s.length && s[i] >= '1' && s[i] <= '9') {
         i++;
         while(i < s.length && isDigit(s[i])) i++;
+    } else if (i >= s.length) {
+        throw new JSONPartialException("Unterminated number");
     } else {
         throw new JSONSyntaxException("Invalid number format");
     }
     
     if (i < s.length && s[i] == '.') {
         i++;
-        if (i >= s.length || !isDigit(s[i])) throw new JSONSyntaxException("Invalid number format: expected digit after .");
+        if (i >= s.length) throw new JSONPartialException("Unterminated number");
+        if (!isDigit(s[i])) throw new JSONSyntaxException("Invalid number format: expected digit after .");
         while(i < s.length && isDigit(s[i])) i++;
     }
     if (i < s.length && (s[i] == 'e' || s[i] == 'E')) {
         i++;
         if (i < s.length && (s[i] == '+' || s[i] == '-')) i++;
-        if (i >= s.length || !isDigit(s[i])) throw new JSONSyntaxException("Invalid number format: expected digit after e/E");
+        if (i >= s.length) throw new JSONPartialException("Unterminated number");
+        if (!isDigit(s[i])) throw new JSONSyntaxException("Invalid number format: expected digit after e/E");
         while(i < s.length && isDigit(s[i])) i++;
     }
     return i;
@@ -432,18 +442,13 @@ private string consumeStringImpl(ref string s, bool extract) @trusted {
                     // Just accept u sequences as raw chars for now or decode utf16
                     // A proper full implementation would decode UTF-16 surrogates to UTF-8
                     if (j + 4 >= rawSlice.length) throw new JSONSyntaxException("Invalid unicode escape");
-                    string hex = rawSlice[j+1 .. j+5];
+                    uint val = parseHex4(rawSlice[j+1 .. j+5]);
                     j += 4;
-                    import std.format : formattedRead;
-                    uint val;
-                    formattedRead(hex, "%x", &val);
                     
                     if (val >= 0xD800 && val <= 0xDBFF) {
                         // High surrogate, expect low surrogate
                         if (j + 6 < rawSlice.length && rawSlice[j+1] == '\\' && rawSlice[j+2] == 'u') {
-                            string hex2 = rawSlice[j+3 .. j+7];
-                            uint val2;
-                            formattedRead(hex2, "%x", &val2);
+                            uint val2 = parseHex4(rawSlice[j+3 .. j+7]);
                             if (val2 >= 0xDC00 && val2 <= 0xDFFF) {
                                 val = 0x10000 + ((val - 0xD800) << 10) + (val2 - 0xDC00);
                                 j += 6;
@@ -469,6 +474,20 @@ private string consumeStringImpl(ref string s, bool extract) @trusted {
     return app.data;
 }
 
+/++ Decodes exactly 4 hex digits of a \u escape. ++/
+private uint parseHex4(string hex) @safe pure {
+    uint val = 0;
+    foreach (h; hex) {
+        uint d;
+        if (h >= '0' && h <= '9') d = h - '0';
+        else if (h >= 'a' && h <= 'f') d = h - 'a' + 10;
+        else if (h >= 'A' && h <= 'F') d = h - 'A' + 10;
+        else throw new JSONSyntaxException("Invalid unicode escape: \\u" ~ hex);
+        val = (val << 4) | d;
+    }
+    return val;
+}
+
 /++  Fully parse JSON string eagerly (no lazy evaluation).
      Returns a completely parsed JValue in a single pass — faster than parseJSON + parseAll(). ++/
 JValue parseJSONComplete(string data) @trusted {
@@ -480,7 +499,10 @@ JValue parseJSONComplete(string data) @trusted {
     return result;
 }
 
-package JValue parseValueFull(ref string s) @trusted {
+/++ Maximum nesting depth accepted by the eager parser (guards against stack overflow). ++/
+enum maxNestingDepth = 1000;
+
+package JValue parseValueFull(ref string s, uint depth = 0) @trusted {
     s = stripJSONWhitespace(s);
     if (s.length == 0) throw new JSONPartialException("Unexpected end of JSON");
 
@@ -491,10 +513,9 @@ package JValue parseValueFull(ref string s) @trusted {
         v.type = JType.String;
         v.str = consumeString(s);
         return v;
-    } else if (c == '{') {
-        return parseObjectFull(s);
-    } else if (c == '[') {
-        return parseArrayFull(s);
+    } else if (c == '{' || c == '[') {
+        if (depth >= maxNestingDepth) throw new JSONSyntaxException("Nesting too deep");
+        return c == '{' ? parseObjectFull(s, depth + 1) : parseArrayFull(s, depth + 1);
     } else if (c == 't') {
         if (s.length >= 4 && s[0..4] == "true") {
             s = s[4..$];
@@ -524,7 +545,7 @@ package JValue parseValueFull(ref string s) @trusted {
     throw new JSONSyntaxException("Invalid JSON token: " ~ c);
 }
 
-private JValue parseObjectFull(ref string s) @trusted {
+private JValue parseObjectFull(ref string s, uint depth) @trusted {
     s = s[1..$]; // skip '{'
     JValue v;
     v.type = JType.Object;
@@ -549,7 +570,7 @@ private JValue parseObjectFull(ref string s) @trusted {
             throw new JSONSyntaxException("Expected ':' after key");
         s = s[1..$]; // skip ':'
 
-        JValue child = parseValueFull(s);
+        JValue child = parseValueFull(s, depth);
         v.obj.pairs ~= JObject.Pair(key, child);
 
         s = stripJSONWhitespace(s);
@@ -564,7 +585,7 @@ private JValue parseObjectFull(ref string s) @trusted {
     return v;
 }
 
-private JValue parseArrayFull(ref string s) @trusted {
+private JValue parseArrayFull(ref string s, uint depth) @trusted {
     s = s[1..$]; // skip '['
     JValue v;
     v.type = JType.Array;
@@ -578,7 +599,7 @@ private JValue parseArrayFull(ref string s) @trusted {
     }
 
     while (true) {
-        JValue child = parseValueFull(s);
+        JValue child = parseValueFull(s, depth);
         v.arr.elements ~= child;
 
         s = stripJSONWhitespace(s);
