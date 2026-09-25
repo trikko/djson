@@ -1059,9 +1059,11 @@ unittest {
     auto json = parseJSON(`{"users": [{"name": "Alice"}, {"name": "Bob"}, {"name": "Cha`);
     auto e = collectException!JSONException(json.get!string("/users/3/name"));
     assert(e !is null && cast(JSONPartialException) e !is null);
-    assert(e.msg == "Incomplete JSON: index 3 not yet available");
+    assert(e.msg == "Incomplete JSON: 'users' » '3' not yet available");
     auto ek = collectException!JSONPartialException(json.get!string("/users/2/pizza"));
-    assert(ek !is null && ek.msg == "Incomplete JSON: key 'pizza' not yet available");
+    assert(ek !is null && ek.msg == "Incomplete JSON: 'users' » '2' » 'pizza' not yet available");
+    auto ev = collectException!JSONPartialException(json.get!string("/users/2/name"));
+    assert(ev !is null && ev.msg == "Incomplete JSON: value at 'users' » '2' » 'name' is truncated");
     assert(collectException!JSONPartialException(json.set("x", "/users/3/name")) !is null);
 
     json.appendData(`rlie"}]}`);
@@ -1076,4 +1078,64 @@ unittest {
     assert(collectException!JSONException(json.get!string("/users/5/name")).msg == "Path not found: 'users' » '5'");
     assert(collectException!JSONException(json.get!string("users", 0, "age")).msg == "Path not found: 'users' » '0' » 'age'");
     assert(json.get!string("/users/1/") == "empty key");
+
+    // Other traversal errors use the same path format
+    assert(collectException!JSONException(json.get!string("/users/x")).msg == "Expected numeric index for array: 'users' » 'x'");
+    assert(collectException!JSONException(json.get!string("/users/0/name/first")).msg == "Cannot traverse primitive value: 'users' » '0' » 'name' » 'first'");
+    assert(collectException!JSONException(json.get!string("users", 0, "name", "first")).msg == "Cannot traverse primitive value: 'users' » '0' » 'name' » 'first'");
+    assert(collectException!JSONException(parseJSON(`"hello"`).get!string("/hello")).msg == "Cannot traverse primitive value: 'hello'");
+    assert(collectException!JSONException(json.set(1, "/users/0/name/first/x")).msg == "Cannot traverse primitive value: 'users' » '0' » 'name' » 'first'");
+    assert(collectException!JSONException(json.set(1, "users", 0, "name", "first", "x")).msg == "Cannot traverse primitive value: 'users' » '0' » 'name' » 'first'");
+    assert(collectException!JSONException(json.append(1, "/users/0/name/x")).msg == "Cannot traverse primitive value: 'users' » '0' » 'name' » 'x'");
+    assert(collectException!JSONException(json.append(1, "/users/x/tags")).msg == "Expected numeric index for array: 'users' » 'x'");
+
+    // Append through array indices
+    auto nested = parseJSON(`{"l": [{"t": [1]}]}`);
+    nested.append(2, "/l/0/t");
+    nested.append(5, "/l/0/new");
+    nested.append(7, "/fresh/0");
+    assert(nested.get!long("/l/0/t/1") == 2);
+    assert(nested.get!long("/l/0/new/0") == 5);
+    assert(nested.get!long("/fresh/0/0") == 7);
+
+    // Variadic set works on lazily parsed documents
+    auto lazyDoc = parseJSON(`{"a": {"b": 1}, "l": [{"x": 1}]}`);
+    lazyDoc.set(2, "a", "c");
+    lazyDoc.set(3, "l", 0, "y");
+    assert(lazyDoc.get!long("/a/c") == 2 && lazyDoc.get!long("/a/b") == 1);
+    assert(lazyDoc.get!long("/l/0/y") == 3);
+}
+
+unittest {
+    // Trailing data after the end of the document
+    auto obj = parseJSON(`{"a": 1}  xyz`);
+    assert(obj.get!long("a") == 1);
+    assert(obj.trailingData == "xyz");
+    assert(parseJSON(`{"a": 1}  `).trailingData == "");
+
+    // Also after parseAll (eager path) and on the lazy array path
+    auto eager = parseJSON(`[1, 2] {"next": true}`);
+    eager.parseAll();
+    assert(eager.trailingData == `{"next": true}`);
+    auto lazyArr = parseJSON(`[1, 2] 3`);
+    assert(lazyArr.get!long(0) == 1);
+    assert(lazyArr.trailingData == "3");
+
+    // Primitive roots
+    assert(parseJSON(`"hi" !`).trailingData == "!");
+    auto num = parseJSON(`42 x`);
+    assert(num.get!long == 42);
+    assert(num.trailingData == "x");
+
+    // Incomplete document: trailing data is not known yet
+    auto partial = parseJSON(`{"a": [1, 2`);
+    assert(collectException!JSONPartialException(partial.trailingData) !is null);
+    partial.appendData(`]}`);
+    assert(partial.trailingData == "");
+    partial.appendData(` garbage`);
+    assert(partial.trailingData == "garbage");
+
+    // The eager parser rejects trailing data
+    assert(collectException!JSONSyntaxException(parseJSONComplete(`{"a": 1} xyz`)) !is null);
+    assert(parseJSONComplete(`{"a": 1}   `).get!long("a") == 1);
 }

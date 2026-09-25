@@ -103,6 +103,9 @@ package void evaluateNode(JValue* v) @trusted {
     } else {
         throw new JSONSyntaxException("Invalid JSON token: " ~ c);
     }
+
+    // Containers keep their tail in unparsedData (which overlaps primitive.tail)
+    if (v.type != JType.Object && v.type != JType.Array) v.primitive.tail = s;
 }
 
 package bool parseNextPair(JValue* v, string seekKey = null) @trusted {
@@ -473,6 +476,7 @@ JValue parseJSONComplete(string data) @trusted {
     s = stripJSONWhitespace(s);
     if (s.length == 0) throw new JSONException("Empty JSON input");
     JValue result = parseValueFull(s);
+    if (stripJSONWhitespace(s).length > 0) throw new JSONSyntaxException("Unexpected data after end of JSON");
     return result;
 }
 

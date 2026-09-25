@@ -154,6 +154,11 @@ struct JValue {
             string raw;
         }
         UnparsedData unparsed; /++ Raw JSON string if type is JType.Unparsed ++/
+        struct PrimitiveData {
+            ubyte[string.sizeof] valueSpace; // overlaps boolean/number/str
+            string tail;
+        }
+        PrimitiveData primitive; /++ Raw data following a parsed primitive (see trailingData) ++/
     }
 
     /++ Construct a JSON null value. ++/
@@ -185,6 +190,14 @@ struct JValue {
          This safely allows resuming parsing by updating all unresolved 
          lazy portions of the JSON tree with the provided string. ++/
     void appendData(string moreData) @trusted {
+        // At root level, data arriving after a completed value is kept as trailing data
+        if (type == JType.Object && obj.isFullyParsed) obj.unparsedData ~= moreData;
+        else if (type == JType.Array && arr.isFullyParsed) arr.unparsedData ~= moreData;
+        else if (type == JType.String || type == JType.Number || type == JType.Bool || type == JType.Null) primitive.tail ~= moreData;
+        appendDataImpl(moreData);
+    }
+
+    private void appendDataImpl(string moreData) @trusted {
         if (type == JType.Unparsed) {
             unparsed.raw ~= moreData;
         } else if (type == JType.Object) {
@@ -192,16 +205,30 @@ struct JValue {
                 obj.unparsedData ~= moreData;
             }
             foreach(ref p; obj.pairs) {
-                p.value.appendData(moreData);
+                p.value.appendDataImpl(moreData);
             }
         } else if (type == JType.Array) {
             if (!arr.isFullyParsed) {
                 arr.unparsedData ~= moreData;
             }
             foreach(ref el; arr.elements) {
-                el.appendData(moreData);
+                el.appendDataImpl(moreData);
             }
         }
+    }
+
+    /++  Returns the non-whitespace data following the end of the document (empty if none).
+         Call it on the root value. Throws JSONPartialException if the document is not complete yet. ++/
+    string trailingData() @trusted {
+        evaluateSelf();
+        if (type == JType.Object) {
+            while(!obj.isFullyParsed) djson.parser.parseNextPair(&this);
+            return stripJSONWhitespace(obj.unparsedData);
+        } else if (type == JType.Array) {
+            while(!arr.isFullyParsed) djson.parser.parseNextElement(&this);
+            return stripJSONWhitespace(arr.unparsedData);
+        }
+        return stripJSONWhitespace(primitive.tail);
     }
 
     /++ Evaluates current node if it is currently in Unparsed (lazy) state. ++/
@@ -285,6 +312,10 @@ struct JValue {
             // Eager one-pass parsing: avoids the lazy skip+re-parse double work
             string s = unparsed.raw;
             auto result = djson.parser.parseValueFull(s);
+            // Keep what follows the value, so trailingData() still works on the root
+            if (result.type == JType.Object) result.obj.unparsedData = s;
+            else if (result.type == JType.Array) result.arr.unparsedData = s;
+            else result.primitive.tail = s;
             this = result;
             return;
         }
@@ -543,17 +574,11 @@ struct JValue {
         JValue* current = &this;
         string[] visited;
         foreach(arg; args) {
+            static assert(is(typeof(arg) == string) || isIntegral!(typeof(arg)), "Invalid argument type for get!T");
             visited ~= format("'%s'", arg);
-            static if (is(typeof(arg) == string)) {
-                current = current.getPtr(arg);
-            } else static if (isIntegral!(typeof(arg))) {
-                current = current.getPtr(cast(size_t)arg);
-            } else {
-                static assert(0, "Invalid argument type for get!T");
-            }
-            if (!current) throw new JSONException("Path not found: " ~ visited.join(" » "));
+            current = resolvePathSegment(current, arg, visited);
         }
-        return current.as!T();
+        return valueAtPath!T(current, visited);
     }
     
     /++ Returns the current node cast to type T. ++/
@@ -569,24 +594,49 @@ struct JValue {
         foreach(part; parts) {
             string key = decodePointerToken(part);
             visited ~= "'" ~ key ~ "'";
+            current = resolvePathSegment(current, key, visited);
+        }
+        return valueAtPath!T(current, visited);
+    }
+
+    /++  Resolves one segment of a read path. `visited` already ends with `seg` and is
+         used to report the full path in error messages. Never returns null. ++/
+    private static JValue* resolvePathSegment(K)(JValue* current, K seg, const string[] visited) {
+        string where = visited.join(" » ");
+        JValue* next;
+        try {
             current.evaluateSelf();
             if (current.type == JType.Object) {
-                current = current.getPtr(key);
+                static if (is(K == string)) next = current.getPtr(seg);
             } else if (current.type == JType.Array) {
-                // Try to parse array index
-                size_t idx;
-                try {
-                    idx = to!size_t(key);
-                } catch (Exception) {
-                    throw new JSONException("Expected numeric index for array, got '" ~ key ~ "'");
+                static if (is(K == string)) {
+                    size_t idx;
+                    try {
+                        idx = to!size_t(seg);
+                    } catch (Exception) {
+                        throw new JSONException("Expected numeric index for array: " ~ where);
+                    }
+                    next = current.getPtr(idx);
+                } else {
+                    next = current.getPtr(cast(size_t)seg);
                 }
-                current = current.getPtr(idx);
             } else {
-                throw new JSONException("Cannot traverse primitive value at " ~ key);
+                throw new JSONException("Cannot traverse primitive value: " ~ where);
             }
-            if (!current) throw new JSONException("Path not found: " ~ visited.join(" » "));
+        } catch (JSONPartialException e) {
+            throw new JSONPartialException("Incomplete JSON: " ~ where ~ " not yet available");
         }
-        return current.as!T();
+        if (!next) throw new JSONException("Path not found: " ~ where);
+        return next;
+    }
+
+    /++ Converts the value reached by a read path, reporting the path if it is still truncated. ++/
+    private static T valueAtPath(T)(JValue* current, const string[] visited) {
+        try {
+            return current.as!T();
+        } catch (JSONPartialException e) {
+            throw new JSONPartialException("Incomplete JSON: value at " ~ visited.join(" » ") ~ " is truncated");
+        }
     }
 
     /++ Safe version of `.get!T()` that returns a `SafeResult!T` instead of throwing. ++/
@@ -657,17 +707,21 @@ struct JValue {
         }
         
         JValue* current = &this;
+        string[] visited;
         foreach(i, arg; args) {
+            visited ~= format("'%s'", arg);
             static if (i == Args.length - 1) {
                 (*current)[arg] = value;
             } else {
+                current.evaluateSelf();
+                if (current.type != JType.Object && current.type != JType.Array && current.type != JType.Null)
+                    throw new JSONException("Cannot traverse primitive value: " ~ visited.join(" » "));
                 static if (is(typeof(arg) == string)) {
                     if (current.type == JType.Null) {
                         current.type = JType.Object;
                         current.obj.isFullyParsed = true;
                     }
-                    if (current.type != JType.Object) throw new JSONException("Cannot traverse non-object node");
-                    current.evaluateSelf();
+                    if (current.type != JType.Object) throw new JSONException("Cannot traverse non-object node: " ~ visited.join(" » "));
                     while(!current.obj.isFullyParsed) djson.parser.parseNextPair(current);
                     
                     bool found = false;
@@ -683,8 +737,7 @@ struct JValue {
                         current.type = JType.Array;
                         current.arr.isFullyParsed = true;
                     }
-                    if (current.type != JType.Array) throw new JSONException("Cannot traverse non-array node");
-                    current.evaluateSelf();
+                    if (current.type != JType.Array) throw new JSONException("Cannot traverse non-array node: " ~ visited.join(" » "));
                     size_t idx = cast(size_t)arg;
                     while(!current.arr.isFullyParsed && current.arr.elements.length <= idx) djson.parser.parseNextElement(current);
                     if (current.arr.elements.length <= idx) current.arr.elements.length = idx + 1;
@@ -702,8 +755,10 @@ struct JValue {
         string[] parts = path[1..$].split("/");
         
         JValue* current = &this;
+        string[] visited;
         for(size_t i = 0; i < parts.length; i++) {
             string part = decodePointerToken(parts[i]);
+            visited ~= "'" ~ part ~ "'";
             if (i == parts.length - 1) {
                 if (current.type == JType.Array || current.type == JType.Null) {
                     bool isNum = false;
@@ -749,13 +804,13 @@ struct JValue {
                     try {
                         idx = to!size_t(part);
                     } catch (Exception e) {
-                        throw new JSONException("Expected numeric index for array, got '" ~ part ~ "'");
+                        throw new JSONException("Expected numeric index for array: " ~ visited.join(" » "));
                     }
                     while(!current.arr.isFullyParsed && current.arr.elements.length <= idx) djson.parser.parseNextElement(current);
                     if (current.arr.elements.length <= idx) current.arr.elements.length = idx + 1;
                     current = &current.arr.elements[idx];
                 } else {
-                    throw new JSONException("Cannot traverse primitive value at " ~ part);
+                    throw new JSONException("Cannot traverse primitive value: " ~ visited.join(" » "));
                 }
             }
         }
@@ -797,23 +852,29 @@ struct JValue {
         string[] parts = path[1..$].split("/");
         
         JValue* current = &this;
+        string[] visited;
         for(size_t i = 0; i < parts.length; i++) {
             string part = decodePointerToken(parts[i]);
-            if (i == parts.length - 1) {
-                JValue* target = current.getPtrMutable(part);
-                if (!target) {
-                    // Try to see if it should be an array index or object key
-                    bool isNum = false;
-                    try { import std.conv : to; to!size_t(part); isNum = true; } catch(Exception e) {}
-                    if (isNum) (*current)[to!size_t(part)] = JValue(null);
-                    else (*current)[part] = JValue(null);
-                    target = current.getPtrMutable(part);
-                }
-                (*target) ~= value;
-            } else {
+            visited ~= "'" ~ part ~ "'";
+            bool isLast = (i == parts.length - 1);
+
+            bool isNum = false;
+            size_t idx;
+            try { idx = to!size_t(part); isNum = true; } catch(Exception e) {}
+
+            current.evaluateSelf();
+            if (current.type == JType.Array) {
+                if (!isNum) throw new JSONException("Expected numeric index for array: " ~ visited.join(" » "));
+                current = current.getPtrMutableOrCreate(idx);
+            } else if (current.type == JType.Null && isLast && isNum) {
+                current = current.getPtrMutableOrCreate(idx); // a numeric last segment creates an array
+            } else if (current.type == JType.Object || current.type == JType.Null) {
                 current = current.getPtrMutableOrCreate(part);
+            } else {
+                throw new JSONException("Cannot traverse primitive value: " ~ visited.join(" » "));
             }
         }
+        (*current) ~= value;
     }
 
     // Helper to get a mutable pointer to a field/index, or null if not found

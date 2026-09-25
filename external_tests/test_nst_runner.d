@@ -5,7 +5,6 @@
 +/
 import djson;
 
-import djson.parser : skipValue, stripJSONWhitespace;
 import std.file;
 import std.stdio;
 import std.string;
@@ -20,10 +19,7 @@ void main(string[] args) {
         val.toJSON(); 
 
         // Also check for trailing garbage strictly
-        string s = text;
-        skipValue(s);
-        s = stripJSONWhitespace(s);
-        if (s.length > 0) {
+        if (val.trailingData.length > 0) {
             throw new Exception("Trailing garbage detected");
         }
     } catch (Throwable e) {
