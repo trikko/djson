@@ -364,7 +364,8 @@ private static immutable double[23] exactPowersOf10 = [
 ];
 
 /++ Converts an already validated JSON number with at most 15 significant digits and a
-    decimal exponent within ±22. Returns false when the input needs the slow path. ++/
+    decimal exponent within ±22 (or, where `real` is x87 extended precision, up to 19 digits
+    and ±27). Returns false when the input needs the slow path. ++/
 private bool tryFastFloat(string num, out double result) @safe pure nothrow @nogc {
     size_t i = 0;
     bool neg = false;
@@ -376,14 +377,14 @@ private bool tryFastFloat(string num, out double result) @safe pure nothrow @nog
 
     for (; i < num.length && isDigitChar(num[i]); i++) {
         if (mantissa == 0 && num[i] == '0') continue;
-        if (++digits > 15) return false;
+        if (++digits > 19) return false;
         mantissa = mantissa * 10 + (num[i] - '0');
     }
     if (i < num.length && num[i] == '.') {
         for (i++; i < num.length && isDigitChar(num[i]); i++) {
             exp10--;
             if (mantissa == 0 && num[i] == '0') continue;
-            if (++digits > 15) return false;
+            if (++digits > 19) return false;
             mantissa = mantissa * 10 + (num[i] - '0');
         }
     }
@@ -399,6 +400,16 @@ private bool tryFastFloat(string num, out double result) @safe pure nothrow @nog
         exp10 += expNeg ? -e : e;
     }
 
+    if (digits > 15 || exp10 > 22 || exp10 < -22) {
+        static if (real.mant_dig == 64) {
+            if (mantissa == 0 || !extendedFastFloat(mantissa, exp10, result)) return false;
+            if (neg) result = -result;
+            return true;
+        } else {
+            if (mantissa != 0) return false;
+        }
+    }
+
     double m = cast(double)mantissa;
     if (mantissa == 0) result = 0.0;
     else if (exp10 >= 0 && exp10 <= 22) result = m * exactPowersOf10[exp10];
@@ -407,6 +418,29 @@ private bool tryFastFloat(string num, out double result) @safe pure nothrow @nog
 
     if (neg) result = -result;
     return true;
+}
+
+static if (real.mant_dig == 64) {
+    private static immutable real[28] exactPowersOf10Ext = () {
+        real[28] p;
+        p[0] = 1;
+        foreach (k; 1 .. 28) p[k] = p[k - 1] * 10;
+        return p;
+    }();
+
+    /++ Computes mantissa * 10^exp10 (|exp10| <= 27) in x87 extended precision: the 64-bit
+        mantissa and the power of ten are exact, so the single operation is correctly rounded
+        to 64 bits. Rounding that again to a double can only be wrong when the extended result
+        lies exactly on a midpoint between two doubles: in that case return false. ++/
+    private bool extendedFastFloat(ulong mantissa, int exp10, out double result) @trusted pure nothrow @nogc {
+        if (exp10 > 27 || exp10 < -27) return false;
+        real m = mantissa;
+        real r = exp10 >= 0 ? m * exactPowersOf10Ext[exp10] : m / exactPowersOf10Ext[-exp10];
+        ulong significand = *cast(ulong*)&r; // x87 layout: 64-bit significand in the low bytes
+        if ((significand & 0x7FF) == 0x400) return false;
+        result = cast(double)r;
+        return true;
+    }
 }
 
 /++ Consumes a number from string and returns it, mutating s ++/
@@ -578,42 +612,105 @@ package JValue parseValueFull(ref string s, uint depth = 0) @trusted {
     if (s.length == 0) throw new JSONPartialException("Unexpected end of JSON");
 
     char c = s[0];
-    if (c == '"') {
-        s = s[1..$];
-        JValue v;
-        v.type = JType.String;
-        v.str = consumeString(s);
-        return v;
-    } else if (c == '{' || c == '[') {
+    if (c == '{' || c == '[') {
         if (depth >= maxNestingDepth) throw new JSONSyntaxException("Nesting too deep");
         return c == '{' ? parseObjectFull(s, depth + 1) : parseArrayFull(s, depth + 1);
-    } else if (c == 't') {
-        if (s.length >= 4 && s[0..4] == "true") {
-            s = s[4..$];
-            return JValue(true);
-        }
-        throw new JSONSyntaxException("Invalid boolean");
-    } else if (c == 'f') {
-        if (s.length >= 5 && s[0..5] == "false") {
-            s = s[5..$];
-            return JValue(false);
-        }
-        throw new JSONSyntaxException("Invalid boolean");
-    } else if (c == 'n') {
-        if (s.length >= 4 && s[0..4] == "null") {
-            s = s[4..$];
-            JValue v;
-            v.type = JType.Null;
-            return v;
-        }
-        throw new JSONSyntaxException("Invalid null");
-    } else if (isDigitChar(c) || c == '-') {
-        JValue v;
-        v.type = JType.Number;
-        v.number = consumeNumber(s);
-        return v;
     }
-    throw new JSONSyntaxException("Invalid JSON token: " ~ c);
+    JValue v;
+    parseScalarInto(s, &v);
+    return v;
+}
+
+/++ Parses the non-container value at the start of `s` (already stripped and non-empty) straight
+    into `*dest`, which must be zero-initialized. Writing in place instead of returning a JValue
+    avoids a store-forwarding stall when the caller copies the result into its scratch slot. ++/
+pragma(inline, true)
+private void parseScalarInto(ref string s, JValue* dest) @trusted {
+    char c = s[0];
+    if (c == '"') {
+        s = s[1..$];
+        dest.str = consumeString(s);
+        dest.type = JType.String;
+    } else if (isDigitChar(c) || c == '-') {
+        dest.number = consumeNumber(s);
+        dest.type = JType.Number;
+    } else if (c == 't') {
+        if (s.length < 4 || s[0..4] != "true") throw new JSONSyntaxException("Invalid boolean");
+        s = s[4..$];
+        dest.boolean = true;
+        dest.type = JType.Bool;
+    } else if (c == 'f') {
+        if (s.length < 5 || s[0..5] != "false") throw new JSONSyntaxException("Invalid boolean");
+        s = s[5..$];
+        dest.boolean = false;
+        dest.type = JType.Bool;
+    } else if (c == 'n') {
+        if (s.length < 4 || s[0..4] != "null") throw new JSONSyntaxException("Invalid null");
+        s = s[4..$];
+        dest.type = JType.Null;
+    } else {
+        throw new JSONSyntaxException("Invalid JSON token: " ~ c);
+    }
+}
+
+/++ Per-thread scratch stacks used by the eager parser to collect the children of the containers
+    being parsed, so that each container gets a single exact-size allocation instead of growing
+    its array one append at a time. Nested containers use the slice above their parent's. ++/
+private JValue[] valueScratch;
+private size_t valueTop;  /// ditto
+private JObject.Pair[] pairScratch; /// ditto
+private size_t pairTop;   /// ditto
+
+/++ Claims the next (zeroed) scratch slot and returns a pointer to it. The pointer is only valid
+    until the next claim, which may move the stack. ++/
+pragma(inline, true)
+private T* claimScratch(T)(ref T[] stack, ref size_t top) @trusted {
+    if (top == stack.length) {
+        auto grown = new T[](stack.length ? stack.length * 2 : 256);
+        grown[0 .. top] = stack[0 .. top];
+        stack = grown;
+    }
+    return &stack[top++];
+}
+
+pragma(inline, true)
+private void pushScratch(T)(ref T[] stack, ref size_t top, T item) @trusted {
+    *claimScratch(stack, top) = item;
+}
+
+/++ Releases the scratch entries above `base`, clearing them so they don't keep GC memory alive. ++/
+pragma(inline, true)
+private void popScratch(T)(T[] stack, ref size_t top, size_t base) @trusted {
+    stack[base .. top] = T.init;
+    top = base;
+}
+
+/++ Per-thread bump allocator for the children arrays of eagerly parsed containers: small arrays
+    are carved out of shared GC chunks, avoiding one GC allocation (and lock) per container.
+    The chunks are plain GC memory, so they live as long as any array sliced from them. ++/
+private void[] arenaChunk;
+private size_t arenaUsed;  /// ditto
+private enum arenaChunkSize = 64 * 1024;
+private enum arenaMaxItemSize = 2 * 1024;
+
+private T[] arenaCopy(T)(T[] items) @trusted {
+    import core.memory : GC;
+    import core.stdc.string : memcpy;
+
+    if (items.length == 0) return null;
+    immutable bytes = items.length * T.sizeof;
+    if (bytes > arenaMaxItemSize) return items.dup;
+
+    immutable offset = (arenaUsed + 15) & ~cast(size_t)15;
+    if (offset + bytes > arenaChunk.length) {
+        arenaChunk = GC.calloc(arenaChunkSize)[0 .. arenaChunkSize];
+        arenaUsed = 0;
+        return arenaCopy(items);
+    }
+    arenaUsed = offset + bytes;
+    auto dest = arenaChunk.ptr + offset;
+    memcpy(dest, items.ptr, bytes);
+    return (cast(T*)dest)[0 .. items.length];
 }
 
 private JValue parseObjectFull(ref string s, uint depth) @trusted {
@@ -629,6 +726,9 @@ private JValue parseObjectFull(ref string s, uint depth) @trusted {
         return v;
     }
 
+    immutable base = pairTop;
+    scope(failure) popScratch(pairScratch, pairTop, base);
+
     while (true) {
         s = stripJSONWhitespace(s);
         if (s.length == 0 || s[0] != '"')
@@ -641,8 +741,16 @@ private JValue parseObjectFull(ref string s, uint depth) @trusted {
             throw new JSONSyntaxException("Expected ':' after key");
         s = s[1..$]; // skip ':'
 
-        JValue child = parseValueFull(s, depth);
-        appendChild(v.obj.pairs, JObject.Pair(key, child));
+        s = stripJSONWhitespace(s);
+        if (s.length == 0) throw new JSONPartialException("Unexpected end of JSON");
+        if (s[0] == '{' || s[0] == '[') {
+            pushScratch(pairScratch, pairTop, JObject.Pair(key, parseValueFull(s, depth)));
+        } else {
+            // The slot is claimed before parsing so that a failure clears it too
+            auto slot = claimScratch(pairScratch, pairTop);
+            slot.key = key;
+            parseScalarInto(s, &slot.value);
+        }
 
         s = stripJSONWhitespace(s);
         if (s.length == 0) throw new JSONPartialException("Unterminated object");
@@ -653,6 +761,8 @@ private JValue parseObjectFull(ref string s, uint depth) @trusted {
         if (s[0] != ',') throw new JSONSyntaxException("Expected ',' between object entries");
         s = s[1..$]; // skip ','
     }
+    v.obj.pairs = arenaCopy(pairScratch[base .. pairTop]);
+    popScratch(pairScratch, pairTop, base);
     return v;
 }
 
@@ -669,9 +779,14 @@ private JValue parseArrayFull(ref string s, uint depth) @trusted {
         return v;
     }
 
+    immutable base = valueTop;
+    scope(failure) popScratch(valueScratch, valueTop, base);
+
     while (true) {
-        JValue child = parseValueFull(s, depth);
-        appendChild(v.arr.elements, child);
+        s = stripJSONWhitespace(s);
+        if (s.length == 0) throw new JSONPartialException("Unexpected end of JSON");
+        if (s[0] == '{' || s[0] == '[') pushScratch(valueScratch, valueTop, parseValueFull(s, depth));
+        else parseScalarInto(s, claimScratch(valueScratch, valueTop));
 
         s = stripJSONWhitespace(s);
         if (s.length == 0) throw new JSONPartialException("Unterminated array");
@@ -682,5 +797,7 @@ private JValue parseArrayFull(ref string s, uint depth) @trusted {
         if (s[0] != ',') throw new JSONSyntaxException("Expected ',' between array entries");
         s = s[1..$]; // skip ','
     }
+    v.arr.elements = arenaCopy(valueScratch[base .. valueTop]);
+    popScratch(valueScratch, valueTop, base);
     return v;
 }
