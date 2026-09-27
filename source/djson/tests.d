@@ -1485,3 +1485,35 @@ unittest {
     static assert(!__traits(compiles, `[]`.walkJSON!("$[::-1]", (JValue v) {})));
     static assert(__traits(compiles, `[]`.walkJSON!("$[1:]", (JValue v) {})));
 }
+
+@("SWAR skipping behaves exactly like byte-by-byte skipping")
+unittest {
+    import std.array : replicate;
+
+    string outcome(bool swar)(string text) {
+        try {
+            skipValueImpl!swar(text);
+            return text;
+        } catch (JSONPartialException e) return "<partial>";
+        catch (JSONSyntaxException e) return "<syntax>";
+    }
+
+    immutable longText = "abcdefgh".replicate(5);
+    foreach (text; [
+        `"` ~ longText ~ `" tail`, `"` ~ longText ~ `\"` ~ longText ~ `" tail`, `"` ~ longText,
+        `"` ~ longText ~ `\`, `"` ~ longText ~ "\x01\" tail", `"` ~ longText ~ "\\\x01\" tail",
+        `"` ~ longText ~ "\xc3\xa9\" tail", `"abc\"` ~ longText ~ `" tail`,
+        `{"a": [1, 2, {"b": "` ~ longText ~ `]}"}], "c": "\"}"} tail`,
+        `[` ~ longText ~ `, "` ~ longText ~ "\x01" ~ `"] tail`, `[[[[[[[[[[]]]]]]]]]] tail`,
+        `{"a": "` ~ longText ~ `"`, `[` ~ longText, `{"a": "\`, `[}] tail`, `true tail`, `-12.5e3 tail`,
+    ]) {
+        foreach (cut; 0 .. text.length + 1)
+            assert(outcome!false(text[0 .. cut]) == outcome!true(text[0 .. cut]), text[0 .. cut]);
+    }
+
+    // walkJSON skips unselected subtrees with it
+    long sum;
+    (`[{"id": 1, "name": "` ~ longText ~ `"}, {"id": 2, "skip": {"deep": ["` ~ longText ~ `"]}}]`)
+        .walkJSON!("$[*].id", (long v) { sum += v; });
+    assert(sum == 3);
+}

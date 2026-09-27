@@ -279,11 +279,22 @@ private bool isDelimitedStart(char c) @safe pure nothrow @nogc {
 /++  Skips the current JSON value and updates `s` to point after it.
      It works iteratively by maintaining depth. ++/
 public void skipValue(ref string s) @trusted {
+    skipValueImpl!swarSupported(s);
+}
+
+/++ Skips a value scanning eight bytes at a time within a 64-bit word ("SIMD within a register")
+    where supported, or one byte at a time. Both variants accept and reject exactly the same
+    inputs; the byte-by-byte one is package-visible so the tests can compare them. ++/
+package void skipValueImpl(bool swar)(ref string s) @trusted {
     s = stripJSONWhitespace(s);
     if (s.length == 0) return;
     
     char c = s[0];
     if (c == '{' || c == '[') {
+        static if (swar) {
+            s = s[skipBlockSWAR(s) .. $];
+            return;
+        } else {
         // block skipping
         int depth = 0;
         size_t i = 0;
@@ -308,9 +319,16 @@ public void skipValue(ref string s) @trusted {
             i++;
         }
         throw new JSONPartialException("Unterminated block during skip");
+        }
     } else if (c == '"') {
         s = s[1..$];
-        consumeStringImpl(s, false); // skips the string safely
+        static if (swar) {
+            immutable end = findStringEndSWAR!true(s, 0);
+            if (end >= s.length) throw new JSONPartialException("Unterminated string");
+            s = s[end + 1 .. $];
+        } else {
+            consumeStringImpl(s, false); // skips the string safely
+        }
     } else if (c == 't') { // true
         if (s.length < 4) throw new JSONPartialException("Unterminated true");
         s = s[4..$];
@@ -326,6 +344,100 @@ public void skipValue(ref string s) @trusted {
     } else {
         throw new JSONSyntaxException("Invalid character during skip: " ~ c);
     }
+}
+
+// SWAR helpers: bytes are tested eight at a time in a ulong. The lowest flagged byte of
+// `(x - ones) & ~x & highs` is exactly the first zero byte of `x` (bytes above it may be false
+// positives because of the borrow), so only the first match of a word is ever used.
+version (LittleEndian) package enum swarSupported = true;
+else package enum swarSupported = false;
+
+private enum ulong swarOnes = 0x0101_0101_0101_0101UL;
+private enum ulong swarHighs = 0x8080_8080_8080_8080UL;
+
+pragma(inline, true)
+private ulong swarLoad(const(char)* p) @system pure nothrow @nogc {
+    import core.stdc.string : memcpy;
+    ulong w;
+    memcpy(&w, p, 8); // compiles to a single unaligned load
+    return w;
+}
+
+/++ High bit set in the bytes of `w` equal to `c` (exact up to the first match). ++/
+pragma(inline, true)
+private ulong swarEq(ulong w, char c) @safe pure nothrow @nogc {
+    immutable x = w ^ (swarOnes * c);
+    return (x - swarOnes) & ~x & swarHighs;
+}
+
+/++ Index of the closing quote of the string starting at `s[i]` (just after the opening quote),
+    or `s.length` if it is missing. Escapes are skipped; with `checkControl` an unescaped
+    control character throws, like `consumeStringImpl`. ++/
+private size_t findStringEndSWAR(bool checkControl)(string s, size_t i) @trusted {
+    import core.bitop : bsf;
+    immutable n = s.length;
+    const p = s.ptr;
+    while (true) {
+        ulong m;
+        while (i + 8 <= n) {
+            immutable w = swarLoad(p + i);
+            m = swarEq(w, '"') | swarEq(w, '\\');
+            static if (checkControl) m |= (w - swarOnes * 0x20) & ~w & swarHighs;
+            if (m) break;
+            i += 8;
+        }
+        if (m) {
+            i += bsf(m) >> 3;
+        } else {
+            while (i < n && s[i] != '"' && s[i] != '\\' && (!checkControl || s[i] >= 0x20)) i++;
+            if (i >= n) return n;
+        }
+        char c = s[i];
+        if (c == '"') return i;
+        if (c == '\\') {
+            i += 2;
+            if (i >= n) return n;
+            continue;
+        }
+        throw new JSONSyntaxException("Unescaped control character in string");
+    }
+}
+
+/++ Length of the object or array at the start of `s`, closing bracket included. ++/
+private size_t skipBlockSWAR(string s) @trusted {
+    import core.bitop : bsf;
+    immutable n = s.length;
+    const p = s.ptr;
+    size_t depth = 0;
+    size_t i = 0;
+    while (true) {
+        // Next structural byte: '"', or a bracket ('[' and ']' become '{' and '}' with bit 5 set)
+        ulong m;
+        while (i + 8 <= n) {
+            immutable w = swarLoad(p + i);
+            immutable folded = w | (swarOnes * 0x20);
+            m = swarEq(w, '"') | swarEq(folded, '{') | swarEq(folded, '}');
+            if (m) break;
+            i += 8;
+        }
+        if (m) {
+            i += bsf(m) >> 3;
+        } else {
+            while (i < n && (s[i] | 0x20) != '{' && (s[i] | 0x20) != '}' && s[i] != '"') i++;
+            if (i >= n) break;
+        }
+        char c = s[i];
+        if (c == '"') {
+            i = findStringEndSWAR!false(s, i + 1);
+            if (i >= n) break;
+        } else if ((c | 0x20) == '{') {
+            depth++;
+        } else if (--depth == 0) {
+            return i + 1;
+        }
+        i++;
+    }
+    throw new JSONPartialException("Unterminated block during skip");
 }
 
 private size_t scanNumber(string s) @safe {
