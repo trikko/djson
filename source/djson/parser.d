@@ -363,126 +363,144 @@ private static immutable double[23] exactPowersOf10 = [
     1e12, 1e13, 1e14, 1e15, 1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22
 ];
 
-/++ Converts an already validated JSON number with at most 15 significant digits and a
-    decimal exponent within ±22 (or, where `real` is x87 extended precision, up to 19 digits
-    and ±27). Returns false when the input needs the slow path. ++/
-private bool tryFastFloat(string num, out double result) @safe pure nothrow @nogc {
-    size_t i = 0;
-    bool neg = false;
-    if (num[0] == '-') { neg = true; i++; }
-
-    ulong mantissa = 0;
-    int digits = 0;   // significant digits (leading zeros excluded)
-    int exp10 = 0;
-
-    for (; i < num.length && isDigitChar(num[i]); i++) {
-        if (mantissa == 0 && num[i] == '0') continue;
-        if (++digits > 19) return false;
-        mantissa = mantissa * 10 + (num[i] - '0');
+/++ Full 64x64 -> 128 bit product, as [low, high]. ++/
+pragma(inline, true)
+private ulong[2] mul128(ulong a, ulong b) @trusted pure nothrow @nogc {
+    version (LDC) {
+        import ldc.llvmasm : __ir_pure;
+        return __ir_pure!(`%a = zext i64 %0 to i128
+            %b = zext i64 %1 to i128
+            %m = mul i128 %a, %b
+            %lo = trunc i128 %m to i64
+            %s = lshr i128 %m, 64
+            %hi = trunc i128 %s to i64
+            %r0 = insertvalue [2 x i64] undef, i64 %lo, 0
+            %r1 = insertvalue [2 x i64] %r0, i64 %hi, 1
+            ret [2 x i64] %r1`, ulong[2])(a, b);
+    } else {
+        immutable ulong aLo = a & 0xFFFF_FFFF, aHi = a >> 32;
+        immutable ulong bLo = b & 0xFFFF_FFFF, bHi = b >> 32;
+        immutable ulong ll = aLo * bLo, lh = aLo * bHi, hl = aHi * bLo, hh = aHi * bHi;
+        immutable ulong mid = (ll >> 32) + (lh & 0xFFFF_FFFF) + (hl & 0xFFFF_FFFF);
+        return [(mid << 32) | (ll & 0xFFFF_FFFF), hh + (lh >> 32) + (hl >> 32) + (mid >> 32)];
     }
-    if (i < num.length && num[i] == '.') {
-        for (i++; i < num.length && isDigitChar(num[i]); i++) {
-            exp10--;
-            if (mantissa == 0 && num[i] == '0') continue;
-            if (++digits > 19) return false;
-            mantissa = mantissa * 10 + (num[i] - '0');
-        }
-    }
-    if (i < num.length) { // 'e' or 'E'
-        i++;
-        bool expNeg = false;
-        if (num[i] == '+' || num[i] == '-') { expNeg = num[i] == '-'; i++; }
-        int e = 0;
-        for (; i < num.length; i++) {
-            if (e > 1000) return false;
-            e = e * 10 + (num[i] - '0');
-        }
-        exp10 += expNeg ? -e : e;
-    }
+}
 
-    if (digits > 15 || exp10 > 22 || exp10 < -22) {
-        static if (real.mant_dig == 64) {
-            if (mantissa == 0 || !extendedFastFloat(mantissa, exp10, result)) return false;
-            if (neg) result = -result;
-            return true;
-        } else {
-            if (mantissa != 0) return false;
-        }
+/++ Eisel-Lemire: correctly rounded w * 10^q for a nonzero exact decimal mantissa `w`.
+    Follows the fast_float implementation; returns false (slow path) for results that would be
+    subnormal or overflow, and for the rare products too close to call. ++/
+private bool eiselLemire(ulong w, int q, out double result) @trusted pure nothrow @nogc {
+    import core.bitop : bsr;
+    import djson.pow5 : pow5Table, pow5MinExponent, pow5MaxExponent;
+
+    if (q < pow5MinExponent || q > pow5MaxExponent) return false;
+
+    immutable lz = 63 - bsr(w);
+    w <<= lz;
+
+    // 128-bit approximation of w * 5^q, refined with the low half of the table entry when the
+    // bits that decide the rounding are all ones
+    immutable pow5 = pow5Table[q - pow5MinExponent];
+    ulong[2] product = mul128(w, pow5[0]);
+    enum ulong precisionMask = ulong.max >> 55; // 52 mantissa bits + 3
+    if ((product[1] & precisionMask) == precisionMask) {
+        immutable second = mul128(w, pow5[1]);
+        product[0] += second[1];
+        if (second[1] > product[0]) product[1]++;
     }
+    if (product[0] == ulong.max && (q < -27 || q > 55)) return false;
 
-    double m = cast(double)mantissa;
-    if (mantissa == 0) result = 0.0;
-    else if (exp10 >= 0 && exp10 <= 22) result = m * exactPowersOf10[exp10];
-    else if (exp10 < 0 && exp10 >= -22) result = m / exactPowersOf10[-exp10];
-    else return false;
+    immutable upperBit = cast(int)(product[1] >> 63);
+    ulong mantissa = product[1] >> (upperBit + 64 - 52 - 3);
+    int power2 = (((152_170 + 65_536) * q) >> 16) + 63 + upperBit - lz + 1023;
+    if (power2 <= 0) return false; // subnormal
 
-    if (neg) result = -result;
+    // Exact halfway case: round to even
+    if (product[0] <= 1 && q >= -4 && q <= 23 && (mantissa & 3) == 1
+            && (mantissa << (upperBit + 64 - 52 - 3)) == product[1])
+        mantissa &= ~1UL;
+
+    mantissa += mantissa & 1;
+    mantissa >>= 1;
+    if (mantissa >= (2UL << 52)) {
+        mantissa = 1UL << 52;
+        power2++;
+    }
+    mantissa &= ~(1UL << 52);
+    if (power2 >= 0x7FF) return false; // overflow
+
+    ulong bits = mantissa | (cast(ulong)power2 << 52);
+    result = *cast(double*)&bits;
     return true;
 }
 
-static if (real.mant_dig == 64) {
-    private static immutable real[28] exactPowersOf10Ext = () {
-        real[28] p;
-        p[0] = 1;
-        foreach (k; 1 .. 28) p[k] = p[k - 1] * 10;
-        return p;
-    }();
-
-    /++ Computes mantissa * 10^exp10 (|exp10| <= 27) in x87 extended precision: the 64-bit
-        mantissa and the power of ten are exact, so the single operation is correctly rounded
-        to 64 bits. Rounding that again to a double can only be wrong when the extended result
-        lies exactly on a midpoint between two doubles: in that case return false. ++/
-    private bool extendedFastFloat(ulong mantissa, int exp10, out double result) @trusted pure nothrow @nogc {
-        if (exp10 > 27 || exp10 < -27) return false;
-        real m = mantissa;
-        real r = exp10 >= 0 ? m * exactPowersOf10Ext[exp10] : m / exactPowersOf10Ext[-exp10];
-        ulong significand = *cast(ulong*)&r; // x87 layout: 64-bit significand in the low bytes
-        if ((significand & 0x7FF) == 0x400) return false;
-        result = cast(double)r;
-        return true;
-    }
-}
-
-/++ Consumes a number from string and returns it, mutating s ++/
+/++ Consumes a number from string and returns it, mutating s.
+    Validates the number and accumulates its decimal mantissa in a single pass, then converts it
+    exactly with doubles (Clinger) for up to 15 digits and a decimal exponent within ±22, with
+    Eisel-Lemire for up to 19 digits, and with std.conv only for the remaining cases. ++/
 private double consumeNumber(ref string s) @trusted {
-    size_t len = scanNumber(s);
+    size_t i = 0;
+    immutable n = s.length;
+    bool neg = false;
+    if (i < n && s[i] == '-') { neg = true; i++; }
+    if (i >= n) throw new JSONPartialException("Unterminated number");
 
-    // Fast path: try parsing as a simple integer in one pass (no allocation)
-    {
-        size_t j = 0;
-        bool neg = false;
-        if (j < len && s[j] == '-') { neg = true; j++; }
+    ulong mantissa = 0;
+    int digits = 0;     // significant digits accumulated (leading zeros excluded)
+    int exp10 = 0;
+    bool truncated = false;
 
-        long val = 0;
-        bool isInt = (j < len);
-        while (j < len) {
-            char c = s[j];
-            if (c >= '0' && c <= '9') {
-                val = val * 10 + (c - '0');
-            } else {
-                isInt = false;
-                break;
-            }
-            j++;
-        }
-
-        if (isInt && len <= 18) {
-            s = s[len..$];
-            return neg ? -cast(double)val : cast(double)val;
-        }
+    if (s[i] == '0') {
+        i++;
+    } else if (s[i] >= '1' && s[i] <= '9') {
+        do {
+            if (digits < 19) { mantissa = mantissa * 10 + (s[i] - '0'); digits++; }
+            else truncated = true;
+            i++;
+        } while (i < n && isDigitChar(s[i]));
+    } else {
+        throw new JSONSyntaxException("Invalid number format");
     }
 
-    // Fast float path (Clinger): exact when mantissa and power of ten are both exact doubles
-    {
-        double fast;
-        if (tryFastFloat(s[0..len], fast)) {
-            s = s[len..$];
-            return fast;
-        }
+    if (i < n && s[i] == '.') {
+        i++;
+        if (i >= n) throw new JSONPartialException("Unterminated number");
+        if (!isDigitChar(s[i])) throw new JSONSyntaxException("Invalid number format: expected digit after .");
+        do {
+            if (mantissa == 0 && s[i] == '0') exp10--;
+            else if (digits < 19) { mantissa = mantissa * 10 + (s[i] - '0'); digits++; exp10--; }
+            else truncated = true;
+            i++;
+        } while (i < n && isDigitChar(s[i]));
     }
-    // Float path: use to!double
-    string numStr = s[0..len];
-    s = s[len..$];
+
+    if (i < n && (s[i] == 'e' || s[i] == 'E')) {
+        i++;
+        bool expNeg = false;
+        if (i < n && (s[i] == '+' || s[i] == '-')) { expNeg = s[i] == '-'; i++; }
+        if (i >= n) throw new JSONPartialException("Unterminated number");
+        if (!isDigitChar(s[i])) throw new JSONSyntaxException("Invalid number format: expected digit after e/E");
+        int e = 0;
+        do {
+            if (e < 100_000) e = e * 10 + (s[i] - '0');
+            i++;
+        } while (i < n && isDigitChar(s[i]));
+        exp10 += expNeg ? -e : e;
+    }
+
+    string numStr = s[0 .. i];
+    s = s[i .. $];
+
+    if (!truncated) {
+        double result;
+        bool ok = true;
+        if (mantissa == 0) result = 0.0;
+        else if (digits <= 15 && exp10 >= 0 && exp10 <= 22) result = cast(double)mantissa * exactPowersOf10[exp10];
+        else if (digits <= 15 && exp10 < 0 && exp10 >= -22) result = cast(double)mantissa / exactPowersOf10[-exp10];
+        else ok = eiselLemire(mantissa, exp10, result);
+        if (ok) return neg ? -result : result;
+    }
+
     try {
         return to!double(numStr);
     } catch(Exception e) {
