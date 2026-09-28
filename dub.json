@@ -1,5 +1,5 @@
 {
-	"description": "A high-performance, lazy JSON parser for D.",
+	"description": "Fast, lazy, zero-dependency JSON parser and serializer in pure D: JSONPath, streaming, struct binding, mutation. Faster than std.json.",
 	"license": "MIT",
 	"authors": [
 		"Andrea Fontana"
