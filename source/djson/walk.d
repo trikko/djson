@@ -41,7 +41,7 @@ text.walkJSON!(
 
 Expressions starting with `/` are JSON Pointers and select a single node, with
 the same rules as `JValue.get` (`/users/1/name`). Expressions starting with `$`
-are JSONPath. Supported JSONPath subset: `$`, `.name`, `['name']`, `[n]`, `[*]`, `.*`,
+are JSONPath. Supported JSONPath subset: `$`, `.name`, $(D_INLINECODE ['name']), `[n]`, `[*]`, `.*`,
 descendants (`..name`, `..*`, `..[n]`), unions (`['a','b']`, `[0,2]`) and
 slices with non-negative bounds (`[1:5]`, `[::2]`). Filters (`[?...]`) and
 negative indices need data that is not available in a single pass, so they

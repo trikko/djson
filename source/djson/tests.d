@@ -171,6 +171,12 @@ unittest {
     json.set("el", "/arr/2");
     assert(json.get!string("/arr/2") == "el");
     assert(json.get!JArray("/arr").elements.length == 3);
+
+    // JSON pointer ending with an index into a still unparsed array
+    auto lazyJson = parseJSON(`{"l": [1], "o": {"k": 1}}`);
+    lazyJson.set(9, "/l/3");
+    lazyJson.set(2, "/o/k");
+    assert(lazyJson.toJSON() == `{"l":[1,null,null,9],"o":{"k":2}}`);
 }
 
 unittest {
@@ -197,6 +203,25 @@ unittest {
     assert(stdJ.type == std.json.JSONType.object);
     assert(stdJ["name"].str == "test");
     assert(stdJ["list"].array[1].integer == 2);
+
+    // From std.json, members sorted by key
+    JSONValue src = std.json.parseJSON(`{"z": [1, 2.5, -3, true, null], "a": {"s": "x\ny"}, "u": 18446744073709551615}`);
+    JValue back = JValue(src);
+    assert(back.toJSON() == `{"a":{"s":"x\ny"},"u":1.8446744073709552e+19,"z":[1,2.5,-3,true,null]}`);
+    assert(back.get!double("z", 1) == 2.5);
+    back.set("added", "a", "t");
+    assert(back.get!string("/a/t") == "added");
+
+    // Round trip and assignment of a JSONValue into an existing tree
+    assert(JValue(json.toStdJSON()).toJSON() == `{"list":[1,2,3],"name":"test"}`);
+    auto tree = djson.parseJSON(`{"k": 1}`);
+    tree["std"] = src["a"];
+    tree.set(JSONValue([1, 2]), "/nested/arr");
+    assert(tree.toJSON() == `{"k":1,"std":{"s":"x\ny"},"nested":{"arr":[1,2]}}`);
+
+    // Binding
+    assert(fromJSON!JSONValue(tree)["nested"]["arr"].array.length == 2);
+    assert(djson.toJSON(src["a"]).get!string("s") == "x\ny");
 }
 
 unittest {
@@ -1516,4 +1541,19 @@ unittest {
     (`[{"id": 1, "name": "` ~ longText ~ `"}, {"id": 2, "skip": {"deep": ["` ~ longText ~ `"]}}]`)
         .walkJSON!("$[*].id", (long v) { sum += v; });
     assert(sum == 3);
+}
+
+// Binding: paths whose first field goes through an array index
+private struct BindIdxPointer { @JSON("/a/0") int x; }
+private struct BindIdxVariadic { @JSON("a", 0) int x; }
+private struct BindIdxNested { @JSON("a", 0, "b") int x; @JSON("/a/1/b") int y; @JSON("/m/k") int z; }
+
+unittest {
+    assert(toJSON(BindIdxPointer(1)).toJSON() == `{"a":[1]}`);
+    assert(toJSON(BindIdxVariadic(1)).toJSON() == `{"a":[1]}`);
+
+    auto v = toJSON(BindIdxNested(1, 2, 3));
+    assert(v.toJSON() == `{"a":[{"b":1},{"b":2}],"m":{"k":3}}`);
+    auto back = fromJSON!BindIdxNested(v);
+    assert(back.x == 1 && back.y == 2 && back.z == 3);
 }

@@ -7,5 +7,6 @@
 	"copyright": "Copyright © 2026, Andrea Fontana",
 	"name": "djson",
 	"targetType": "library",
-	"-ddoxTool": "scod"
+	"-ddoxTool": "scod",
+	"-ddoxFilterArgs": ["--min-protection=Protected", "--only-documented", "--ex", "djson.tests", "--ex", "djson.pow5"]
 }

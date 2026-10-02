@@ -90,15 +90,15 @@ struct SafeResult(T) {
 
 /++ Represents a JSON Object (ordered mapping of keys to values). ++/
 struct JObject {
-    /++ Internal representation of a key-value pair. ++/
+    /++ A key-value pair of the object. ++/
     struct Pair {
-        string key;
-        JValue value;
+        string key;   /++ Member name ++/
+        JValue value; /++ Member value ++/
     }
     Pair[] pairs;       /++ Storage for key-value pairs ++/
-    string unparsedData; /++ Remaining unparsed string data (lazy) ++/
-    bool isFullyParsed;  /++ True if all fields have been evaluated ++/
-    bool hasPendingTail; /++ True if the last pair is registered but its value is still incomplete ++/
+    package string unparsedData; // Remaining unparsed string data (lazy)
+    package bool isFullyParsed;  // True if all fields have been evaluated
+    package bool hasPendingTail; // True if the last pair is registered but its value is still incomplete
 
     /++ Cast to string (JSON representation) or std.json.JSONValue. ++/
     T opCast(T)() {
@@ -120,9 +120,9 @@ struct JObject {
 /++ Represents a JSON Array (ordered list of values). ++/
 struct JArray {
     JValue[] elements;   /++ Storage for array elements ++/
-    string unparsedData; /++ Remaining unparsed string data (lazy) ++/
-    bool isFullyParsed;  /++ True if all elements have been evaluated ++/
-    bool hasPendingTail; /++ True if the last element is registered but still incomplete ++/
+    package string unparsedData; // Remaining unparsed string data (lazy)
+    package bool isFullyParsed;  // True if all elements have been evaluated
+    package bool hasPendingTail; // True if the last element is registered but still incomplete
 
     /++ Cast to string (JSON representation) or std.json.JSONValue. ++/
     T opCast(T)() {
@@ -151,15 +151,15 @@ struct JValue {
         string str;          /++ Value if type is JType.String ++/
         JObject obj;         /++ Container if type is JType.Object ++/
         JArray arr;          /++ Container if type is JType.Array ++/
-        struct UnparsedData {
+        package struct UnparsedData {
             string raw;
         }
-        UnparsedData unparsed; /++ Raw JSON string if type is JType.Unparsed ++/
-        struct PrimitiveData {
+        package UnparsedData unparsed; // Raw JSON string if type is JType.Unparsed
+        package struct PrimitiveData {
             ubyte[string.sizeof] valueSpace; // overlaps boolean/number/str
             string tail;
         }
-        PrimitiveData primitive; /++ Raw data following a parsed primitive (see trailingData) ++/
+        package PrimitiveData primitive; // Raw data following a parsed primitive (see trailingData)
     }
 
     /++ Construct a JSON null value. ++/
@@ -178,6 +178,29 @@ struct JValue {
     this(JObject o) pure @safe { type = JType.Object; obj = o; }
     /++ Construct a JSON array. ++/
     this(JArray a) pure @safe { type = JType.Array; arr = a; }
+    /++ Construct from a `std.json.JSONValue`, converting it recursively (the reverse of `toStdJSON`).
+        `JSONValue` objects are unordered, so their members are sorted by key. ++/
+    this(JSONValue v) @trusted {
+        switch (v.type) {
+            case JSONType.true_: this = JValue(true); break;
+            case JSONType.false_: this = JValue(false); break;
+            case JSONType.integer: this = JValue(cast(double)v.integer); break;
+            case JSONType.uinteger: this = JValue(cast(double)v.uinteger); break;
+            case JSONType.float_: this = JValue(v.floating); break;
+            case JSONType.string: this = JValue(v.str); break;
+            case JSONType.object:
+                import std.algorithm : sort;
+                auto members = v.objectNoRef;
+                becomeObject();
+                foreach (key; members.keys.sort) obj.pairs ~= JObject.Pair(key, JValue(members[key]));
+                break;
+            case JSONType.array:
+                becomeArray();
+                foreach (el; v.arrayNoRef) arr.elements ~= JValue(el);
+                break;
+            default: this = JValue(null);
+        }
+    }
     
     /++ Turns this node into an empty, fully parsed object (clearing any stale union data). ++/
     package void becomeObject() pure @trusted {
@@ -194,7 +217,7 @@ struct JValue {
     }
 
     /++ Internal helper to create a lazy node that will be parsed on demand. ++/
-    static JValue mkUnparsed(string s) pure @trusted {
+    package static JValue mkUnparsed(string s) pure @trusted {
         JValue v;
         v.type = JType.Unparsed;
         v.unparsed.raw = s;
@@ -243,7 +266,7 @@ struct JValue {
     }
 
     /++ Evaluates current node if it is currently in Unparsed (lazy) state. ++/
-    void evaluateSelf() {
+    package void evaluateSelf() {
         if (type == JType.Unparsed) {
             djson.parser.evaluateNode(&this);
         }
@@ -766,7 +789,7 @@ struct JValue {
 
     /++  Traverse a JValue following a runtime array of JSONKeySegment (from djson.binding).
          Returns null if any segment is not found. Used internally by the binding system. ++/
-    JValue* getPtrBySegments(S)(S[] segments) {
+    package JValue* getPtrBySegments(S)(S[] segments) {
         JValue* current = &this;
         foreach (seg; segments) {
             if (!current) return null;
@@ -850,6 +873,7 @@ struct JValue {
         for(size_t i = 0; i < parts.length; i++) {
             string part = decodePointerToken(parts[i]);
             if (i == parts.length - 1) {
+                current.evaluateSelf();
                 if (current.type == JType.Array || current.type == JType.Null) {
                     bool isNum = false;
                     size_t idx;

@@ -28,7 +28,7 @@ SOFTWARE.
     other path-based methods keep using JSON Pointers. It also accepts
     JSON Pointers (expressions starting with `/`), with the same rules as `JValue.get`.
 
-    Supported syntax: `$`, `.name`, `['name']`, `[n]` (negative counts from the end),
+    Supported syntax: `$`, `.name`, $(D_INLINECODE ['name']), `[n]` (negative counts from the end),
     `[*]`, `.*`, descendants (`..name`, `..*`, `..[n]`), unions (`['a','b']`, `[0,2]`)
     and slices (`[1:5]`, `[::-1]`). Filter expressions (`[?...]`) are not supported.
 ++/
@@ -43,18 +43,44 @@ struct PathItem {
     size_t index; /++ Element index, when the node is inside an array ++/
     bool isIndex; /++ True if the node is an array element ++/
 
-    /++ Normalized JSONPath form of the step, e.g. `['name']` or `[3]`. ++/
+    /++ Normalized JSONPath form of the step, e.g. $(D_INLINECODE ['name']) or `[3]`. ++/
     string toString() const @safe pure {
         import std.conv : to;
         return isIndex ? "[" ~ index.to!string ~ "]" : "['" ~ escapePathKey(key) ~ "']";
     }
 }
 
-/++ Normalized JSONPath of a node, e.g. `$['coordinates'][3]['x']`. ++/
+/++  Formats a node path as a normalized JSONPath (RFC 9535), e.g. $(D_INLINECODE $['coordinates'][3]['x']).
+
+     `JValue.select` and `walkJSON` report where each node was found as an array of `PathItem`;
+     this turns it into a readable string, useful for logs and error messages. The result
+     identifies exactly one node and can be passed back to `JValue.select`. ++/
 string pathToString(const(PathItem)[] path) @safe pure {
     string result = "$";
     foreach (item; path) result ~= item.toString();
     return result;
+}
+
+///
+unittest {
+    import djson;
+
+    auto json = parseJSON(`{"users": [{"name": "Alice"}, {"name": "Bob", "email": "bob@example.com"}]}`);
+
+    // Where are the users without an email?
+    string[] missing;
+    foreach (path, ref user; json.select("$.users[*]")) {
+        if (!user.has("email")) missing ~= pathToString(path);
+    }
+    assert(missing == [`$['users'][0]`]);
+
+    // The normalized path selects that node again
+    assert(json.select(missing[0])[0].get!string("name") == "Alice");
+
+    // walkJSON callbacks can receive the path too
+    string[] names;
+    `{"a": {"b": [10, 20]}}`.walkJSON!("$..*", (JValue v, const(PathItem)[] p) { names ~= pathToString(p); });
+    assert(names == [`$['a']['b'][0]`, `$['a']['b'][1]`, `$['a']['b']`, `$['a']`]);
 }
 
 /++  Nodes selected by `JValue.select`, in JSONPath result order.

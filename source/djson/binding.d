@@ -32,8 +32,10 @@ import std.conv;
 import std.string;
 import std.meta : AliasSeq;
 import std.range : isInputRange;
+import std.json : JSONValue;
 
-struct JSONImpl(bool _optional = false) {
+// Implementation of the `@JSON` and `@JSONOptional` UDAs
+package struct JSONImpl(bool _optional = false) {
     JSONKeySegment[] segments;
     enum isOptional = _optional;
 
@@ -81,7 +83,7 @@ alias JSONOptional = JSONImpl!true;
 enum JSONIgnore;
 
 /++  A single segment in a JSONKey path: either a string key or an array index. ++/
-struct JSONKeySegment {
+package struct JSONKeySegment {
     bool isIndex;
     string key;
     size_t index;
@@ -109,6 +111,8 @@ struct JSONPostProcess(alias func) {
 T fromJSON(T)(JValue v) {
     static if (is(T == JValue)) {
         return v;
+    } else static if (is(T == JSONValue)) {
+        return v.toStdJSON();
     } else static if (isBasicType!T || is(T == string)) {
         return v.get!T();
     } else static if (isArray!T) {
@@ -174,8 +178,8 @@ T fromJSON(T)(JValue v) {
 
 /++  Convert a D type T to a JValue. ++/
 JValue toJSON(T)(T value) {
-    static if (is(T == JValue)) {
-        return value;
+    static if (is(T == JValue) || is(T == JSONValue)) {
+        return JValue(value);
     } else static if (isBasicType!T || is(T == string)) {
         return JValue(value);
     } else static if (isArray!T) {
@@ -221,91 +225,42 @@ JValue toJSON(T)(T value) {
     }
 }
 
-/++  Traverse a JValue following a runtime array of JSONKeySegment.
-     Returns null if any segment is not found. ++/
+/++  Writes `val` at the path `segs` under `root`, creating the missing objects and arrays.
+     As in `JValue.set`, a numeric segment is an index when the node is an array or does not
+     exist yet, and a key when the node is an object. ++/
 private void setBySegments(ref JValue root, const(JSONKeySegment)[] segs, JValue val) {
     assert(segs.length > 0);
     JValue* current = &root;
     foreach (i, seg; segs) {
-        if (i == segs.length - 1) {
-            // Leaf: assign
-            if (seg.isIndex) {
-                (*current)[seg.index] = val;
-            } else {
-                if (current.type == JType.Array) {
-                    bool isNum = false;
-                    size_t idx;
-                    try {
-                        import std.conv : to;
-                        idx = to!size_t(seg.key);
-                        isNum = true;
-                    } catch (Exception) {}
-                    if (isNum) (*current)[idx] = val;
-                    else (*current)[seg.key] = val;
-                } else {
-                    (*current)[seg.key] = val;
-                }
-            }
-        } else {
-            // Intermediate node: navigate or create
-            JValue* next;
-            
-            bool useIndex = false;
-            size_t idx;
-            string key;
+        current.evaluateSelf();
 
-            if (seg.isIndex) {
+        size_t idx = seg.index;
+        bool useIndex = seg.isIndex;
+        if (!useIndex && (current.type == JType.Array || current.type == JType.Null)) {
+            try {
+                idx = to!size_t(seg.key);
                 useIndex = true;
-                idx = seg.index;
-            } else {
-                key = seg.key;
-                if (current.type == JType.Array) {
-                    try {
-                        import std.conv : to;
-                        idx = to!size_t(key);
-                        useIndex = true;
-                    } catch (Exception) {}
-                }
-            }
-
-            if (useIndex) {
-                if (current.type == JType.Null) {
-                    current.becomeArray();
-                }
-                next = current.getPtr(idx);
-                if (next is null) {
-                    (*current)[idx] = JValue(null);
-                    next = current.getPtr(idx);
-                }
-            } else {
-                if (current.type == JType.Null) {
-                    // Peek next segment to decide if we should be an Array or Object
-                    bool nextIsIndex = false;
-                    if (i + 1 < segs.length) {
-                        if (segs[i+1].isIndex) nextIsIndex = true;
-                        else {
-                            try {
-                                import std.conv : to;
-                                to!size_t(segs[i+1].key);
-                                nextIsIndex = true;
-                            } catch (Exception) {}
-                        }
-                    }
-                    
-                    if (nextIsIndex) {
-                        current.becomeArray();
-                    } else {
-                        current.becomeObject();
-                    }
-                }
-                next = current.getPtr(key);
-                if (next is null) {
-                    (*current)[key] = JValue(null);
-                    next = current.getPtr(key);
-                }
-            }
-            current = next;
+            } catch (Exception) {}
         }
+
+        if (i == segs.length - 1) {
+            if (useIndex) (*current)[idx] = val;
+            else (*current)[seg.key] = val;
+            return;
+        }
+
+        // Intermediate node: assigning creates the container if `current` is null
+        JValue* next = useIndex ? current.getPtr(idx) : current.getPtr(seg.key);
+        if (next is null) {
+            if (useIndex) {
+                (*current)[idx] = JValue(null);
+                next = current.getPtr(idx);
+            } else {
+                (*current)[seg.key] = JValue(null);
+                next = current.getPtr(seg.key);
+            }
+        }
+        current = next;
     }
 }
 

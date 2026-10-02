@@ -42,7 +42,7 @@ JValue parseJSON(string data) pure @safe {
 /++ Helper function to strip leading JSON-standard whitespace.
     Whitespace includes space, tab, newline, and carriage return. ++/
 pragma(inline, true)
-public string stripJSONWhitespace(string s) @safe pure {
+package string stripJSONWhitespace(string s) @safe pure {
     if (s.length > 0 && s[0] > ' ') return s;
     size_t i = 0;
     while (i < s.length && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r')) {
@@ -278,7 +278,7 @@ private bool isDelimitedStart(char c) @safe pure nothrow @nogc {
 
 /++  Skips the current JSON value and updates `s` to point after it.
      It works iteratively by maintaining depth. ++/
-public void skipValue(ref string s) @trusted {
+package void skipValue(ref string s) @trusted {
     skipValueImpl!swarSupported(s);
 }
 
