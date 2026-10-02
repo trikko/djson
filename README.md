@@ -1,4 +1,4 @@
-<img align="left" alt="djson logo" width="100" height="100" src="https://trikko.github.io/djson/logo.svg">
+<img align="left" alt="djson logo" width="100" height="100" src="https://github.com/trikko/djson/raw/main/docs/logo.svg">
 
 # djson
 
