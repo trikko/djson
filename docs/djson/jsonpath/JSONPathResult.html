@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
+		<title>Struct JSONPathResult</title>
+		<link rel="stylesheet" href="../../css/style.min.css"/>
+		<script type="text/javascript" src="../../js/script.min.js"></script>
+	</head>
+	<body onload="setupDdox();">
+		<header></header>
+		<nav id="main-nav">
+			<div>
+				<noscript>
+					<p style="color: red">The search functionality needs JavaScript enabled</p>
+				</noscript>
+				<div id="symbolSearchPane" style="display: none">
+					<form action="#" method="GET">
+						<input id="symbolSearch" type="text" name="q" placeholder="Search for symbols" autocomplete="off" onchange="performSymbolSearch(24);" onkeypress="this.onchange();" onpaste="this.onchange();" oninput="this.onchange();" autofocus/>
+					</form>
+					<ul id="symbolSearchResults" class="symbolList" style="display: none"></ul><script type="application/javascript" src="../../symbols.js"></script><script type="application/javascript">var symbolSearchRootDir = "../../";
+document.getElementById('symbolSearchPane').style.display = 'block';</script>
+				</div>
+				<ul class="tree-view">
+					<li class="tree-view ">
+						<div class="package ">
+							<a href="../../djson.html">djson</a>
+						</div>
+				<ul class="tree-view">
+					<li>
+						<div class="module ">
+							<a href="../../djson/binding.html">binding</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/builder.html">builder</a>
+						</div>
+					</li>
+					<li>
+						<div class="module selected">
+							<a href="../../djson/jsonpath.html">jsonpath</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/parser.html">parser</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/value.html">value</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/walk.html">walk</a>
+						</div>
+					</li>
+				</ul>
+					</li>
+				</ul>
+			</div>
+			<p id="main-nav-footer">
+				Built with<a href="https://github.com/MartinNowak/scod">scod</a>
+			</p>
+		</nav>
+		<div id="main-contents">
+			<div>
+				<h1>Struct JSONPathResult</h1><p>Nodes selected by <code class="lang-d"><span class="typ">JValue<wbr/></span><span class="pun">.</span><span class="pln">select</span></code>, in JSONPath result order.
+</p>
+				<div class="prototype">
+					<code class="lang-d">
+						<div class="single-prototype">
+				<span class="kwd">struct</span> <span class="typ">JSONPathResult</span><span class="pun">;</span>
+						</div>
+					</code>
+				</div>
+				<section><p>Iterate with <code class="lang-d"><span class="kwd">foreach </span><span class="pun">(</span><span class="kwd">ref </span><span class="pln">v</span><span class="pun">; </span><span class="pln">result</span><span class="pun">)</span></code> (or <code class="lang-d"><span class="kwd">foreach </span><span class="pun">(<a href="../../djson/jsonpath/JSONPathResult.path.html"></span><span class="pln">path</span></a><span class="pun">, </span><span class="kwd">ref </span><span class="pln">v</span><span class="pun">; </span><span class="pln">result</span><span class="pun">)</span></code> to
+     also get the normalized path of each node). Nodes are returned by reference,
+     so they can be modified in place.
+</p>
+
+<p>     Each node is located by its position from the queried node, so results stay
+     valid while other parts of the document are read or values are changed.
+     Removing members or elements, or replacing a container that holds a result,
+     invalidates the results that depend on it: accessing them throws <code class="lang-d"><span class="typ">JSONException</span></code>.
+</p>
+
+<p>     On truncated input the nodes available so far are returned and <code class="lang-d"><a href="../../djson/jsonpath/JSONPathResult.isComplete.html"><span class="pln">isComplete</span></a></code> is false.
+</p>
+</section>
+
+				<section><h2>Properties</h2>
+					<table>
+						<col class="caption"/>
+						<tr>
+							<th>Name</th><th>Type</th><th>Description</th>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/jsonpath/JSONPathResult.empty.html" class="public property"><code>empty</code></a><span class="tableEntryAnnotation">[get]</span>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><span class="typ">bool</span></code></td><td>True if no node was selected.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/jsonpath/JSONPathResult.front.html" class="public property"><code>front</code></a><span class="tableEntryAnnotation">[get]</span>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><a href="../../djson/value/JValue.html"><span class="typ">JValue</span></a></code></td><td>Range interface: first selected node.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/jsonpath/JSONPathResult.isComplete.html" class="public property"><code>isComplete</code></a><span class="tableEntryAnnotation">[get]</span>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><span class="typ">bool</span></code></td><td>False if the document is truncated where the query needed data (see <code class="lang-d"><span class="typ">JValue<wbr/></span><span class="pun">.</span><span class="pln">appendData</span></code>):
+         more nodes may match once the rest arrives. Nodes whose value is itself truncated are
+         included; reading them throws <code class="lang-d"><span class="typ">JSONPartialException</span></code>, like <code class="lang-d"><span class="pln">get</span></code>.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/jsonpath/JSONPathResult.length.html" class="public property"><code>length</code></a><span class="tableEntryAnnotation">[get]</span>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><span class="typ">ulong</span></code></td><td>Number of selected nodes.
+</td>
+						</tr>
+					</table>
+				</section>
+				<section><h2>Methods</h2>
+					<table>
+						<col class="caption"/>
+						<tr>
+							<th>Name</th><th>Description</th>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/jsonpath/JSONPathResult.opApply.html" class="public">
+									<code>opApply</code>
+								</a>
+								<span class="tableEntryAnnotation">(dg)</span>
+							</td>
+							<td>Iterates the selected nodes by reference.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/jsonpath/JSONPathResult.opApply.html" class="public">
+									<code>opApply</code>
+								</a>
+								<span class="tableEntryAnnotation">(dg)</span>
+							</td>
+							<td>Iterates the selected nodes with their paths.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/jsonpath/JSONPathResult.opIndex.html" class="public">
+									<code>opIndex</code>
+								</a>
+								<span class="tableEntryAnnotation">(i)</span>
+							</td>
+							<td>The <code class="lang-d"><a href="../../djson/jsonpath/JSONPathResult.opIndex.html#i"><span class="pln">i</span></a></code>-th selected node.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/jsonpath/JSONPathResult.path.html" class="public">
+									<code>path</code>
+								</a>
+								<span class="tableEntryAnnotation">(i)</span>
+							</td>
+							<td>Path of the <code class="lang-d"><a href="../../djson/jsonpath/JSONPathResult.path.html#i"><span class="pln">i</span></a></code>-th selected node.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/jsonpath/JSONPathResult.popFront.html" class="public">
+									<code>popFront</code>
+								</a>
+								<span class="tableEntryAnnotation">()</span>
+							</td>
+							<td>Range interface: drops the first selected node.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/jsonpath/JSONPathResult.remove.html" class="public">
+									<code>remove</code>
+								</a>
+								<span class="tableEntryAnnotation">()</span>
+							</td>
+							<td>Removes the selected nodes from their parents and returns how many were removed.
+         The queried node itself is never removed. The result is empty afterwards.
+</td>
+						</tr>
+					</table>
+				</section>
+			</div>
+			<footer>
+				<div id="license-info">
+					
+				</div>
+			</footer>
+		</div>
+	</body>
+</html>

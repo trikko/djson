@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="UTF-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
-		<title>Function skipValue</title>
+		<title>Function JValue.isNumber</title>
 		<link rel="stylesheet" href="../../css/style.min.css"/>
 		<script type="text/javascript" src="../../js/script.min.js"></script>
 	</head>
@@ -28,18 +28,33 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 						</div>
 				<ul class="tree-view">
 					<li>
-						<div class="module selected">
+						<div class="module ">
+							<a href="../../djson/binding.html">binding</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/builder.html">builder</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/jsonpath.html">jsonpath</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
 							<a href="../../djson/parser.html">parser</a>
 						</div>
 					</li>
 					<li>
-						<div class="module ">
-							<a href="../../djson/tests.html">tests</a>
+						<div class="module selected">
+							<a href="../../djson/value.html">value</a>
 						</div>
 					</li>
 					<li>
 						<div class="module ">
-							<a href="../../djson/value.html">value</a>
+							<a href="../../djson/walk.html">walk</a>
 						</div>
 					</li>
 				</ul>
@@ -52,16 +67,11 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 		</nav>
 		<div id="main-contents">
 			<div>
-				<h1>Function skipValue</h1><p>Skips the current JSON value and updates <code class="lang-d"><a href="../../djson/parser/skipValue.html#s"><span class="pln">s</span></a></code> to point after it.
-     It works iteratively by maintaining depth.
+				<h1>Function JValue.isNumber</h1><p>Returns true if this value represents JSON number.
 </p>
 				<div class="prototype">
 					<code class="lang-d">
-						<div class="single-prototype">
-				<span class="typ">void</span> <span class="pln">skipValue</span><span class="pun">(</span>
-				<br/>&nbsp;&nbsp;<span class="kwd">ref </span><span class="typ">string</span> <span class="pln">s</span>
-				<br/>
-				<span class="pun">)</span><span class="pln"> </span><span class="kwd">@trusted</span><span class="pun">;</span>
+						<div class="single-prototype"><span class="typ">bool</span> <span class="pln">isNumber</span><span class="pun">(</span><span class="pun">)</span><span class="pln"> </span><span class="kwd">@property</span><span class="pun">;</span>
 						</div>
 					</code>
 				</div>

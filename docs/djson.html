@@ -29,17 +29,32 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 				<ul class="tree-view">
 					<li>
 						<div class="module ">
+							<a href="./djson/binding.html">binding</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="./djson/builder.html">builder</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="./djson/jsonpath.html">jsonpath</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
 							<a href="./djson/parser.html">parser</a>
 						</div>
 					</li>
 					<li>
 						<div class="module ">
-							<a href="./djson/tests.html">tests</a>
+							<a href="./djson/value.html">value</a>
 						</div>
 					</li>
 					<li>
 						<div class="module ">
-							<a href="./djson/value.html">value</a>
+							<a href="./djson/walk.html">walk</a>
 						</div>
 					</li>
 				</ul>
@@ -57,36 +72,62 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 <section><section><h2>Example</h2>
 <pre class="code"><code class="lang-d"><span class="kwd">import </span><span class="pln">djson</span><span class="pun">;
 
+@</span><span class="pln">JSON </span><span class="kwd">struct </span><span class="typ">Profile </span><span class="pun">{        </span><span class="com">// all public fields are bound
+    </span><span class="typ">string </span><span class="pln">name</span><span class="pun">;
+    </span><span class="typ">string</span><span class="pun">[] </span><span class="pln">tags</span><span class="pun">;
+    @</span><span class="typ">JSONOptional int </span><span class="pln">age</span><span class="pun">;    </span><span class="com">// keeps its init value if missing
+</span><span class="pun">}
+
 </span><span class="typ">void </span><span class="pln">main</span><span class="pun">() {
+    </span><span class="com">// Lazy: only the parts you access are parsed (parseJSONComplete parses everything at once)
     </span><span class="kwd">auto </span><span class="pln">json </span><span class="pun">= </span><span class="pln">parseJSON</span><span class="pun">(</span><span class="str">`{
         "user": {
             "id": 123,
             "profile": { "name": "Alice", "tags": ["admin", "beta"] }
-        }
+        },
+        "orders": [ { "total": 9.5 }, { "total": 20 } ]
     }`</span><span class="pun">);
 
-    </span><span class="com">// 1. Read deep value (variadic or JSON pointer)
+    </span><span class="com">// 1. Read deep values (variadic or JSON pointer), or a default if missing
     </span><span class="typ">string </span><span class="pln">name </span><span class="pun">= </span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">get</span><span class="pun">!</span><span class="typ">string</span><span class="pun">(</span><span class="str">"user"</span><span class="pun">, </span><span class="str">"profile"</span><span class="pun">, </span><span class="str">"name"</span><span class="pun">);
     </span><span class="typ">string </span><span class="pln">tag0 </span><span class="pun">= </span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">get</span><span class="pun">!</span><span class="typ">string</span><span class="pun">(</span><span class="str">"/user/profile/tags/0"</span><span class="pun">);
+    </span><span class="typ">long   </span><span class="pln">karma </span><span class="pun">= </span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">safe</span><span class="pun">!</span><span class="typ">long</span><span class="pun">(</span><span class="str">"user"</span><span class="pun">, </span><span class="str">"karma"</span><span class="pun">)<wbr/>.</span><span class="pln">or</span><span class="pun">(</span><span class="lit">0</span><span class="pun">);
 
     </span><span class="com">// 2. Check if a key or path exists
     </span><span class="kwd">if </span><span class="pun">(</span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">has</span><span class="pun">(</span><span class="str">"user"</span><span class="pun">, </span><span class="str">"profile"</span><span class="pun">, </span><span class="str">"name"</span><span class="pun">)) { </span><span class="com">/* ... */ </span><span class="pun">}
     </span><span class="typ">bool </span><span class="pln">hasEmail </span><span class="pun">= </span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">has</span><span class="pun">(</span><span class="str">"/user/contact/email"</span><span class="pun">); </span><span class="com">// false
 
-    // 3. Set or update a value (auto-vivifies missing nodes)
+    // 3. Iterate objects and arrays
+    </span><span class="kwd">foreach </span><span class="pun">(</span><span class="typ">string </span><span class="pln">key</span><span class="pun">, </span><span class="kwd">ref </span><span class="pln">value</span><span class="pun">; </span><span class="pln">json</span><span class="pun">[</span><span class="str">"user"</span><span class="pun">]) { </span><span class="com">/* "id", "profile" */ </span><span class="pun">}
+    </span><span class="kwd">foreach </span><span class="pun">(</span><span class="pln">size_t i</span><span class="pun">, </span><span class="kwd">ref </span><span class="pln">order</span><span class="pun">; </span><span class="pln">json</span><span class="pun">[</span><span class="str">"orders"</span><span class="pun">]) { </span><span class="com">/* ... */ </span><span class="pun">}
+
+    </span><span class="com">// 4. Query with JSONPath: results are references, editable in place
+    </span><span class="typ">double </span><span class="pln">sum </span><span class="pun">= </span><span class="lit">0</span><span class="pun">;
+    </span><span class="kwd">foreach </span><span class="pun">(</span><span class="kwd">ref </span><span class="pln">total</span><span class="pun">; </span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">select</span><span class="pun">(</span><span class="str">"$.orders[*].total"</span><span class="pun">)) </span><span class="pln">sum </span><span class="pun">+= </span><span class="pln">total<wbr/></span><span class="pun">.</span><span class="pln">get</span><span class="pun">!</span><span class="typ">double</span><span class="pun">;
+
+    </span><span class="com">// 5. Bind to D types and back
+    </span><span class="typ">Profile </span><span class="pln">p </span><span class="pun">= </span><span class="pln">fromJSON</span><span class="pun">!</span><span class="typ">Profile</span><span class="pun">(</span><span class="pln">json</span><span class="pun">[</span><span class="str">"user"</span><span class="pun">][</span><span class="str">"profile"</span><span class="pun">]);
+    </span><span class="typ">JValue </span><span class="pln">pj </span><span class="pun">= </span><span class="pln">toJSON</span><span class="pun">(</span><span class="pln">p</span><span class="pun">);
+
+    </span><span class="com">// 6. Set or update values (auto-vivifies missing nodes) and build new ones
     </span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">set</span><span class="pun">(</span><span class="str">"alice@example.com"</span><span class="pun">, </span><span class="str">"user"</span><span class="pun">, </span><span class="str">"contact"</span><span class="pun">, </span><span class="str">"email"</span><span class="pun">);
     </span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">set</span><span class="pun">(</span><span class="lit">1</span><span class="pun">, </span><span class="str">"/meta/version"</span><span class="pun">);
+    </span><span class="pln">json</span><span class="pun">[</span><span class="str">"orders"</span><span class="pun">] ~= </span><span class="pln">JSOB</span><span class="pun">(</span><span class="str">"total"</span><span class="pun">, </span><span class="lit">5</span><span class="pun">, </span><span class="str">"items"</span><span class="pun">, </span><span class="pln">JSAB</span><span class="pun">(</span><span class="str">"pen"</span><span class="pun">, </span><span class="str">"ink"</span><span class="pun">));
 
-    </span><span class="com">// 4. Delete a value or a whole branch
+    </span><span class="com">// 7. Delete a value or a whole branch
     </span><span class="pln">json</span><span class="pun">[</span><span class="str">"user"</span><span class="pun">][</span><span class="str">"profile"</span><span class="pun">]<wbr/>.</span><span class="pln">remove</span><span class="pun">(</span><span class="str">"tags"</span><span class="pun">);
     </span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">remove</span><span class="pun">(</span><span class="str">"meta"</span><span class="pun">);
 
-    </span><span class="com">// 5. Serialize back to JSON
+    </span><span class="com">// 8. Serialize back to JSON
     </span><span class="typ">string </span><span class="pln">result </span><span class="pun">= </span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">toJSON</span><span class="pun">(</span><span class="kwd">true</span><span class="pun">); </span><span class="com">// pretty print
 </span><span class="pun">}</span></code></pre>
+
+<p>To read large documents in a single pass without building a tree, see <code class="lang-d"><span class="pln">walkJSON</span></code>.
+For truncated input arriving from a stream, see <code class="lang-d"><span class="typ">JValue<wbr/></span><span class="pun">.</span><span class="pln">appendData</span></code>.
+</p>
 </section>
 <section><h2>See Also</h2>
-<p>djson.value, djson.parser
+<p>djson.value, djson.parser, djson.jsonpath, djson.walk, djson.binding, djson.builder
 </p>
 </section>
 </section>

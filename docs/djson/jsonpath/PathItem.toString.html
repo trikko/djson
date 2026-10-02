@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="UTF-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
-		<title>Function JValue.evaluateSelf</title>
+		<title>Function PathItem.toString</title>
 		<link rel="stylesheet" href="../../css/style.min.css"/>
 		<script type="text/javascript" src="../../js/script.min.js"></script>
 	</head>
@@ -29,17 +29,32 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 				<ul class="tree-view">
 					<li>
 						<div class="module ">
+							<a href="../../djson/binding.html">binding</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/builder.html">builder</a>
+						</div>
+					</li>
+					<li>
+						<div class="module selected">
+							<a href="../../djson/jsonpath.html">jsonpath</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
 							<a href="../../djson/parser.html">parser</a>
 						</div>
 					</li>
 					<li>
 						<div class="module ">
-							<a href="../../djson/tests.html">tests</a>
+							<a href="../../djson/value.html">value</a>
 						</div>
 					</li>
 					<li>
-						<div class="module selected">
-							<a href="../../djson/value.html">value</a>
+						<div class="module ">
+							<a href="../../djson/walk.html">walk</a>
 						</div>
 					</li>
 				</ul>
@@ -52,11 +67,11 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 		</nav>
 		<div id="main-contents">
 			<div>
-				<h1>Function JValue.evaluateSelf</h1><p>Evaluates current node if it is currently in Unparsed (lazy) state.
+				<h1>Function PathItem.toString</h1><p>Normalized JSONPath form of the step, e.g. <code class="lang-d">['name']</code> or <code class="lang-d"><span class="pun">[</span><span class="lit">3</span><span class="pun">]</span></code>.
 </p>
 				<div class="prototype">
 					<code class="lang-d">
-						<div class="single-prototype"><span class="typ">void</span> <span class="pln">evaluateSelf</span><span class="pun">(</span><span class="pun">)</span><span class="pun">;</span>
+						<div class="single-prototype"><span class="typ">string</span> <span class="pln">toString</span><span class="pun">(</span><span class="pun">)</span><span class="pln"> </span><span class="kwd">pure @safe const</span><span class="pun">;</span>
 						</div>
 					</code>
 				</div>

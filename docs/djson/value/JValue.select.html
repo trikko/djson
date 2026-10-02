@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
+		<title>Function JValue.select</title>
+		<link rel="stylesheet" href="../../css/style.min.css"/>
+		<script type="text/javascript" src="../../js/script.min.js"></script>
+	</head>
+	<body onload="setupDdox();">
+		<header></header>
+		<nav id="main-nav">
+			<div>
+				<noscript>
+					<p style="color: red">The search functionality needs JavaScript enabled</p>
+				</noscript>
+				<div id="symbolSearchPane" style="display: none">
+					<form action="#" method="GET">
+						<input id="symbolSearch" type="text" name="q" placeholder="Search for symbols" autocomplete="off" onchange="performSymbolSearch(24);" onkeypress="this.onchange();" onpaste="this.onchange();" oninput="this.onchange();" autofocus/>
+					</form>
+					<ul id="symbolSearchResults" class="symbolList" style="display: none"></ul><script type="application/javascript" src="../../symbols.js"></script><script type="application/javascript">var symbolSearchRootDir = "../../";
+document.getElementById('symbolSearchPane').style.display = 'block';</script>
+				</div>
+				<ul class="tree-view">
+					<li class="tree-view ">
+						<div class="package ">
+							<a href="../../djson.html">djson</a>
+						</div>
+				<ul class="tree-view">
+					<li>
+						<div class="module ">
+							<a href="../../djson/binding.html">binding</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/builder.html">builder</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/jsonpath.html">jsonpath</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/parser.html">parser</a>
+						</div>
+					</li>
+					<li>
+						<div class="module selected">
+							<a href="../../djson/value.html">value</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/walk.html">walk</a>
+						</div>
+					</li>
+				</ul>
+					</li>
+				</ul>
+			</div>
+			<p id="main-nav-footer">
+				Built with<a href="https://github.com/MartinNowak/scod">scod</a>
+			</p>
+		</nav>
+		<div id="main-contents">
+			<div>
+				<h1>Function JValue.select</h1><p>Selects the nodes matching a JSONPath expression (RFC 9535), or a JSON Pointer.
+         Only the parts of the document needed by the query are parsed.
+</p>
+				<div class="prototype">
+					<code class="lang-d">
+						<div class="single-prototype">
+				<a href="../../djson/jsonpath/JSONPathResult.html"><span class="typ">JSONPathResult</span></a> <span class="pln">select</span><span class="pun">(</span>
+				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">path</span>
+				<br/>
+				<span class="pun">)</span><span class="pun">;</span>
+						</div>
+					</code>
+				</div>
+				<section><h2>Example</h2>
+<p><code class="lang-d"><span class="kwd">foreach </span><span class="pun">(</span><span class="kwd">ref </span><span class="pln">price</span><span class="pun">; </span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="pln">select</span><span class="pun">(</span><span class="str">"$.store.book[*].price"</span><span class="pun">)) { ... }</span></code>
+</p>
+</section>
+<section><h2>Throws</h2>
+<p><code class="lang-d"><a href="../../djson/value/JSONException.html"><span class="typ">JSONException</span></a></code> if the expression is invalid. See <code class="lang-d"><a href="../../djson/jsonpath.html"><span class="pln">djson<wbr/></span><span class="pun">.</span><span class="pln">jsonpath</span></a></code> for the
+         supported syntax and for the lifetime of the result.
+</p>
+</section>
+
+			</div>
+			<footer>
+				<div id="license-info">
+					
+				</div>
+			</footer>
+		</div>
+	</body>
+</html>

@@ -1,0 +1,51 @@
+# djson: lazy JSON for D
+
+djson is a lazy JSON parser and serializer for the D programming language, in pure D, with no dependencies. This file documents version 0.9.5. It parses only the parts of a document that are read; it also has an eager parser, JSONPath queries, a single-pass callback walker, struct binding, builders, mutation, resumable parsing of truncated input and conversion to and from `std.json`.
+
+The whole API, with the rules and worked examples, is in [llms-full.txt](https://trikko.github.io/djson/llms-full.txt). The rules that are easiest to get wrong are in [AGENTS.md](https://trikko.github.io/djson/AGENTS.md). HTML reference: <https://trikko.github.io/djson/djson.html>.
+
+## Core Concepts
+
+- **JValue**: every node of a document (a struct). `type` is a `JType`: `Null`, `Bool`, `Number`, `String`, `Object`, `Array`.
+- **Lazy parsing**: `parseJSON(text)` parses nothing until a value is read, and then only what is needed. Parts never read are never validated. `parseJSONComplete(text)` parses and validates everything in one pass.
+- **Paths**: `get`, `safe`, `has`, `set`, `append` take variadic segments (`"users", 0, "name"`) or a JSON Pointer (`"/users/0/name"`). JSONPath (`$..name`) is for `select` and `walkJSON`.
+- **Numbers** are `double`; object members keep their order.
+- **Errors**: `JSONException`, and its subclasses `JSONSyntaxException` (invalid JSON) and `JSONPartialException` (truncated input).
+- **Name clashes**: `std.json` also has `parseJSON`, `toJSON`, `JSONException`; use `static import std.json;`.
+
+## Installation & Basic Usage
+
+`dub add djson`
+
+```d
+import djson;
+import std.stdio;
+
+void main() {
+    auto json = parseJSON(`{"user": {"name": "Alice", "tags": ["admin"]}}`);
+    string name = json.get!string("user", "name");
+    string tag  = json.get!string("/user/tags/0");
+    string mail = json.safe!string("user", "email").or("none");
+
+    json.set("alice@example.com", "user", "email");
+    writeln(json.toJSON(true));
+}
+```
+
+## API Overview
+
+- Parsing: `parseJSON`, `parseJSONComplete`, `JValue.parseAll`, `JValue.trailingData`.
+- Reading: `get!T(path...)` (throws if missing), `safe!T(path...)` (`.found`, `.value`, `.or(fallback)`), `has(path...)`, `json["key"]`, `json[0]`, `getPtr`, `isNull`/`isBool`/`isNumber`/`isString`/`isObject`/`isArray`, `length`.
+- Iteration: `foreach (ref v; json)`, `foreach (size_t i, ref v; json)`, `foreach (string key, ref v; json)`.
+- Mutation: `json["k"] = v`, `json[3] = v`, `json ~= v`, `set(v, path...)`, `append(v, path...)`, `remove(key)`, `remove(index)`.
+- Builders: `JSOB("key", value, ...)`, `JSAB(values...)`.
+- Serialization: `toJSON()`, `toJSON(true)` (indented), `toString()`.
+- JSONPath: `select("$.store.book[*].price")` returns references to the matching nodes (`foreach (path, ref v; ...)`, `remove()`, `isComplete`); `pathToString(path)`.
+- Walker: `text.walkJSON!("$.a[*].x", (double v) { ... }, "/b", (string s) { ... })` reads the text once, without building a tree; return `WalkControl.stop` to end early.
+- Binding: `fromJSON!T(json)`, `toJSON(value)`, with the UDAs `@JSON` (on the type or a field, optionally with a path), `@JSONOptional`, `@JSONIgnore`, `@JSONPreProcess!fn`, `@JSONPostProcess!fn`. Fields without UDAs are not bound.
+- Streaming: on truncated input reads throw `JSONPartialException`; `appendData(moreText)` and read again.
+- std.json: `toStdJSON()`, `JValue(jsonValue)`.
+
+## Examples
+
+The `examples/` directory has `01_web_query`: a small web page (with serverino) to try JSONPath queries on any JSON.

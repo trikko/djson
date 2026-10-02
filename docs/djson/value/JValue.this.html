@@ -29,17 +29,32 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 				<ul class="tree-view">
 					<li>
 						<div class="module ">
-							<a href="../../djson/parser.html">parser</a>
+							<a href="../../djson/binding.html">binding</a>
 						</div>
 					</li>
 					<li>
 						<div class="module ">
-							<a href="../../djson/tests.html">tests</a>
+							<a href="../../djson/builder.html">builder</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/jsonpath.html">jsonpath</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/parser.html">parser</a>
 						</div>
 					</li>
 					<li>
 						<div class="module selected">
 							<a href="../../djson/value.html">value</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/walk.html">walk</a>
 						</div>
 					</li>
 				</ul>
@@ -92,6 +107,11 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 						</li>
 						<li>
 							<a href="#7">
+								Function <code>JValue.this</code>
+							</a>
+						</li>
+						<li>
+							<a href="#8">
 								Function <code>JValue.this</code>
 							</a>
 						</li>
@@ -189,6 +209,19 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 				<br/>&nbsp;&nbsp;<a href="../../djson/value/JArray.html"><span class="typ">JArray</span></a> <span class="pln">a</span>
 				<br/>
 				<span class="pun">)</span><span class="pln"> </span><span class="kwd">pure @safe</span><span class="pun">;</span>
+						</div>
+					</code>
+				</div>
+				<h2 id="8">Function JValue.this</h2><p>Construct from a <code class="lang-d"><span class="pln">std<wbr/></span><span class="pun">.</span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="typ">JSONValue</span></code>, converting it recursively (the reverse of <code class="lang-d"><a href="../../djson/value/JValue.toStdJSON.html"><span class="pln">toStdJSON</span></a></code>).
+        <code class="lang-d"><span class="typ">JSONValue</span></code> objects are unordered, so their members are sorted by key.
+</p>
+				<div class="prototype">
+					<code class="lang-d">
+						<div class="single-prototype">
+				<span class="kwd">ref </span><span class="pln">this</span><span class="pun">(</span>
+				<br/>&nbsp;&nbsp;<span class="pln">std<wbr/></span><span class="pun">.</span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="typ">JSONValue</span> <span class="pln">v</span>
+				<br/>
+				<span class="pun">)</span><span class="pln"> </span><span class="kwd">@trusted</span><span class="pun">;</span>
 						</div>
 					</code>
 				</div>

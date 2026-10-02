@@ -1,0 +1,230 @@
+# djson: lazy JSON for D — full reference
+
+djson is a lazy JSON parser and serializer for the D programming language, in pure D, with no dependencies. This file documents version 0.9.5. It parses only the parts of a document that are read, and also offers an eager parser, JSONPath (RFC 9535) queries, a single-pass callback walker, struct binding, builders, mutation, resumable parsing of truncated input and conversion to and from `std.json`. It passes all 283 tests of the JSONTestSuite.
+
+- Repository: <https://github.com/trikko/djson>
+- API reference (HTML): <https://trikko.github.io/djson/djson.html>
+- Install: `dub add djson`, then `import djson;` (it imports every module).
+
+## Rules
+
+- **Lazy by default**: `parseJSON` only stores the text. Each access parses what it needs and keeps the result, so reading the same part again is free. Syntax errors are reported when the broken part is read (`JSONSyntaxException`); parts never read are never validated. `parseJSONComplete` parses and validates everything in one pass.
+- **One value type**: every node is a `JValue` (a struct). Its `type` is a `JType`: `Null`, `Bool`, `Number`, `String`, `Object`, `Array` (and `Unparsed` for a lazy node not evaluated yet: the `isXxx` properties and every accessor evaluate it first).
+- **Numbers are `double`**: `get!int`/`get!long` cast (truncating), integers above 2^53 lose precision. Integers are written without a decimal point; NaN and infinity are written as `null`.
+- **Objects keep the order** of the input (and of insertion); duplicated keys are kept as they are.
+- **Paths**: the path-based methods (`get`, `safe`, `has`, `set`, `append`) take either variadic segments (`"users", 0, "name"`: strings are keys, integers are indices) or one JSON Pointer string (RFC 6901, starting with `/`: `"/users/0/name"`; `~1` is `/`, `~0` is `~`; `"/"` is the node itself). A single string without a leading `/` is a key. JSONPath (`$...`) is used only by `select` and `walkJSON`.
+- **Errors**: `JSONException` for a missing path, a wrong type, an invalid JSONPath; `JSONSyntaxException` (a `JSONException`) for invalid JSON; `JSONPartialException` (a `JSONException`) when the input ends before the value being read.
+- **Copies**: `JValue` has value semantics but holds slices: a copy may share part of the data with the original, depending on what was parsed. Change a document through references (`json["a"]["b"] = x`, `set`, `foreach (ref ...)`, `ref JValue r = json["a"];`, `JValue* p = &json["a"];`), never through a copy.
+- **Name clashes with std.json**: `parseJSON`, `toJSON` and `JSONException` exist in `std.json` too. Use `static import std.json;` (or `import std.json : JSONValue;`) together with `import djson;`.
+
+## Parsing (`djson.parser`)
+
+- `JValue parseJSON(string data)`: A lazy root node. Never throws: errors come out when the data is read.
+- `JValue parseJSONComplete(string data)`: Parses and validates the whole document eagerly. Throws `JSONException` on empty input, `JSONSyntaxException` on invalid JSON or on text after the document, `JSONPartialException` on truncated input.
+- `void JValue.parseAll()`: Parses everything left in a lazy tree (after it, nothing is lazy).
+- `enum maxNestingDepth = 1000`: Maximum nesting accepted by the eager parser.
+- `string JValue.trailingData()`: On the root, the non-whitespace text after the end of the document (empty if none). `parseJSON` accepts trailing text; use this to detect it or to read concatenated documents.
+
+## Reading (`JValue`)
+
+- `T get(T, Args...)(Args path)`: The value at `path`, converted to `T`. `T` can be `string`, `bool`, any numeric type, `JValue`, `JObject`, `JArray`. Throws `JSONException` if the path does not exist (`"Path not found: 'user' » 'email'"`), if it crosses a primitive, or if the type does not match.
+- `T get(T)()`: The node itself converted to `T`.
+- `SafeResult!T safe(T, Args...)(Args path)`, `SafeResult!T safe(T)()`: Like `get` but never throws for a missing path or a wrong type (only `JSONPartialException` on truncated input).
+- `bool has(Args...)(Args path)`: True if the path exists (also when its value is `null`).
+- `ref JValue opIndex(string key)`, `ref JValue opIndex(size_t index)`: `json["key"]`, `json[0]`. Throw `JSONException` if missing.
+- `JValue* getPtr(string key)`, `JValue* getPtr(size_t index)`: A pointer to the member or element, `null` if missing or if the node is not an object/array.
+- `bool isNull`, `isBool`, `isNumber`, `isString`, `isObject`, `isArray`: Type checks.
+- `JType type`: The current type (may be `Unparsed` before the first access; prefer the `isXxx` properties).
+- `size_t length`: Members of an object or elements of an array; 0 for other types.
+- Raw fields, valid for the matching `type` after evaluation: `bool boolean`, `double number`, `string str`, `JObject obj` (`obj.pairs`: `JObject.Pair[]` with `key` and `value`), `JArray arr` (`arr.elements`: `JValue[]`). Prefer `get!T`.
+
+### `SafeResult!T`
+- `T value`, `bool found`.
+- `T or(T fallback)`: `value` if found, else `fallback`.
+- Converts implicitly to `T` (`T.init` if not found): `string s = json.safe!string("k");`.
+
+## Iteration (`JValue.opApply`)
+
+- `foreach (ref v; json)`: Array elements, or object values.
+- `foreach (size_t i, ref v; json)`: With the index (for objects: the position of the member).
+- `foreach (string key, ref v; json)`: Object members in order.
+- Without `ref` the loop variable is a copy: assigning it does not change the document.
+- Primitives iterate nothing.
+
+## Mutation (`JValue`)
+
+- `void opIndexAssign(T)(T value, string key)`: `json["k"] = value;` adds or replaces a member. A `null` node becomes an object; any other non-object throws `JSONException`.
+- `void opIndexAssign(T)(T value, size_t index)`: `json[3] = value;`. A `null` node becomes an array; an index past the end pads with `null`.
+- `void opOpAssign!"~"(T)(T value)`: `json ~= value;` appends to an array. A `null` node becomes `[value]`; any other value becomes `[old, value]`.
+- `void set(T, Args...)(T value, Args path)`: Sets the value at `path`, creating missing objects (for string segments) and arrays (for integer segments, or numeric segments of a JSON Pointer). Throws `JSONException` if the path crosses a primitive. JSON Pointer `-` is not supported: use `append`.
+- `void append(T, Args...)(T value, Args path)`: Appends to the array at `path`, creating it if missing (a non-array value is promoted to `[old, value]`).
+- `bool remove(string key)`, `bool remove(size_t index)`: Remove a member / element of this node; false if not found or of another type.
+- `value` can be anything with a `JValue` constructor: `null`, `bool`, `int`, `long`, `double`, `string`, `JValue`, `JObject`, `JArray`, `std.json.JSONValue`.
+
+### Constructors
+`JValue(null)`, `JValue(bool)`, `JValue(int)`, `JValue(long)`, `JValue(double)`, `JValue(string)`, `JValue(JObject)`, `JValue(JArray)`, `JValue(std.json.JSONValue)`. `JValue()` (the default) is `null`.
+
+## Builders (`djson.builder`)
+
+- `JValue JSOB(T...)(T keysAndValues)`: An object from key/value pairs: `JSOB("name", "Alice", "age", 30)`. Keys must be strings (checked at compile time).
+- `JValue JSAB(T...)(T values)`: An array: `JSAB(1, "two", JSOB("k", true))`.
+
+## Serialization
+
+- `string toJSON(bool pretty = false)`: Compact JSON, or indented by four spaces with `pretty`. Strings are escaped (`"`, `\`, control characters); other UTF-8 is written as is.
+- `string toString()`: Same as `toJSON()`; used by `writeln` and `format`.
+- `cast(string)` works on `JObject` and `JArray` too.
+
+## std.json interop
+
+- `std.json.JSONValue toStdJSON()`: Converts the tree (integers become `JSONType.integer`).
+- `JValue(std.json.JSONValue)`: Converts back. `JSONValue` objects are unordered: members are sorted by key.
+- A `JSONValue` can be assigned or set directly: `json["k"] = jsonValue;`, `json.set(jsonValue, "/a/b");`.
+- `fromJSON!JSONValue(jvalue)` and `toJSON(jsonValue)` work as well.
+
+## JSONPath queries (`JValue.select`, `djson.jsonpath`)
+
+- `JSONPathResult select(string path)`: The nodes matching a JSONPath expression (RFC 9535), or a JSON Pointer. Only the parts needed by the query are parsed. Throws `JSONException` for an invalid expression.
+- Syntax: `$`, `.name`, `['name']`, `["name"]`, `[n]` (negative counts from the end), `[*]`, `.*`, descendants (`..name`, `..*`, `..[n]`), unions (`['a','b']`, `[0,2]`), slices (`[1:5]`, `[::-1]`). Filters (`[?...]`) are not supported.
+
+### `JSONPathResult`
+- A random-access-like input range of `ref JValue`: `length`, `empty`, `front`, `popFront`, `opIndex(i)`; works with `std.algorithm` (`json.select("$..price").map!(v => v.get!double).sum`).
+- `foreach (ref v; result)`, `foreach (path, ref v; result)` (`path` is `const(PathItem)[]`).
+- `PathItem[] path(size_t i)`: The path of the i-th node.
+- `size_t remove()`: Removes all the selected nodes from their parents; returns how many.
+- `bool isComplete`: False if the input is truncated where the query needed data.
+- Results are references by position: they stay valid while values change; removing members or elements, or replacing a container that holds a result, invalidates them (accessing one throws `JSONException`).
+
+### `PathItem`, `pathToString`
+- `PathItem`: `string key`, `size_t index`, `bool isIndex`; `toString()` gives `['key']` or `[3]`.
+- `string pathToString(const(PathItem)[] path)`: The normalized JSONPath of a node (`$['store']['book'][0]['price']`); it selects that node again with `select`.
+
+## Callback walker (`djson.walk`)
+
+- `void walkJSON(Handlers...)(string text)`: Reads `text` once, without building a tree, and calls a callback for each node selected by its expression. `Handlers` alternates expressions and callbacks: `walkJSON!("$.a", cb1, "/b/0", cb2)(text)`.
+- Expressions: JSONPath starting with `$`, or JSON Pointer starting with `/` (exactly one node). They are checked at compile time. Supported: `$`, `.name`, `['name']`, `[n]`, `[*]`, `.*`, descendants, unions, slices with non-negative bounds and step. Negative indices, negative steps and filters are compile errors (use `select`).
+- Callbacks: `(T value)` or `(T value, const(PathItem)[] path)`. `T` picks the conversion like `get!T`; an untyped lambda receives a `JValue`; objects and arrays are passed as lazy `JValue`s over the text. Returning `WalkControl.stop` ends the walk (`WalkControl.next` or nothing goes on).
+- Order: document order; several callbacks on the same node run in declaration order; a selected object or array is reported after the callbacks for its descendants.
+- Skipped subtrees are not validated. Throws `JSONSyntaxException`, `JSONPartialException`, or `JSONException` if a value cannot be converted to the callback type.
+
+## Binding (`djson.binding`)
+
+- `T fromJSON(T)(JValue v)`: Converts to a D type: basic types, `string`, arrays, associative arrays with `string` keys, structs, classes (created with `new T()`), `JValue`, `std.json.JSONValue`.
+- `JValue toJSON(T)(T value)`: The reverse (a `null` class reference gives `null`). Note: on a `JValue`, `x.toJSON()` is the method returning a string; on any other type, UFCS `x.toJSON()` calls this function and returns a `JValue`.
+- Fields of structs and classes are converted only if marked:
+  - `@JSON` on the struct or class: all its public fields; on a field: that field (also non-public).
+  - `@JSON("key")`: another key; `@JSON("/a/b/0")` or `@JSON("a", "b", 0)`: a nested value (written back at the same place by `toJSON`).
+  - `@JSONOptional` (same paths as `@JSON`): may be missing, keeps its `init` value. A missing non-optional field throws `JSONException` (`Missing required field: a.b`).
+  - `@JSONIgnore`: excluded even if the type is `@JSON`.
+  - `@JSONPreProcess!fn`: reads the field with `FieldType fn(JValue v)`; `@JSONPostProcess!fn`: writes it with `JValue fn(FieldType v)`.
+- Without any of these, `toJSON` gives `null` and `fromJSON` returns `T.init`, without errors. JSON members that no field uses are ignored.
+
+## Streaming and truncated input
+
+- Reading a value that the input cuts off throws `JSONPartialException`; what is complete stays readable.
+- `void appendData(string moreData)`: Call it on the root with the next chunk; then read again. Only the interrupted parts resume.
+- `select` on truncated input returns the nodes available so far with `isComplete == false`; selectors counting from the end select nothing until the array is complete.
+
+## Examples
+
+### Read a few fields from a large response
+
+```d
+import djson;
+
+auto json = parseJSON(responseBody);           // nothing parsed yet
+if (json.get!string("status") != "ok")
+    throw new Exception(json.safe!string("error", "message").or("unknown error"));
+
+foreach (ref item; json["data"]["items"])
+    writeln(item.get!long("id"), " ", item.safe!string("title").or("(untitled)"));
+```
+
+### Bind a configuration
+
+```d
+import djson;
+static import std.file;
+
+@JSON struct Database {
+    string host;
+    @JSONOptional int port = 5432;
+}
+
+@JSON struct Config {
+    @JSON("max_threads") int threads;
+    Database db;
+    @JSON("/features/0") string firstFeature;
+    @JSONIgnore string cache;
+}
+
+Config cfg = fromJSON!Config(parseJSONComplete(std.file.readText("config.json")));
+cfg.threads = 16;
+std.file.write("config.json", toJSON(cfg).toJSON(true));
+```
+
+### Edit a document
+
+```d
+auto json = parseJSON(`{"users": [{"name": "Alice", "age": 30}, {"name": "Bob"}]}`);
+
+json["users"][1]["age"] = 25;
+json.set(true, "users", 0, "admin");
+json["users"] ~= JSOB("name", "Carol", "tags", JSAB("new"));
+json.select("$.users[*].age").remove();
+json["users"][0].remove("admin");
+
+writeln(json.toJSON(true));
+```
+
+### Query with JSONPath
+
+```d
+auto json = parseJSON(`{"store": {"book": [{"title": "A", "price": 8.99}, {"title": "B", "price": 22.99}]}}`);
+
+import std.algorithm : map, sum;
+double total = json.select("$..price").map!(v => v.get!double).sum;
+
+foreach (path, ref price; json.select("$.store.book[*].price")) {
+    writeln(pathToString(path), " = ", price);   // $['store']['book'][0]['price'] = 8.99
+    price = JValue(price.get!double * 0.9);      // results are references
+}
+```
+
+### Walk a large document once
+
+```d
+double x = 0, y = 0;
+size_t n;
+text.walkJSON!(
+    "$.coordinates[*].x", (double v) { x += v; n++; },
+    "$.coordinates[*].y", (double v) { y += v; },
+    "/info", (string s) { writeln(s); },
+);
+```
+
+### Truncated input from a stream
+
+```d
+auto json = parseJSON(firstChunk);
+foreach (chunk; nextChunks) {
+    try {
+        writeln(json.get!string("result", "name"));
+        break;
+    } catch (JSONPartialException) {
+        json.appendData(chunk);
+    }
+}
+```
+
+### With std.json
+
+```d
+static import std.json;
+import djson;
+
+std.json.JSONValue legacy = std.json.parseJSON(`{"b": 1, "a": [true]}`);
+JValue v = JValue(legacy);                 // {"a":[true],"b":1}
+v["c"] = legacy["a"];
+std.json.JSONValue back = v.toStdJSON();
+```

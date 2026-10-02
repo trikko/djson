@@ -22,6 +22,43 @@ A lazy JSON parser for the D programming language. Parses only what you access: 
 
 - [API Reference](https://trikko.github.io/djson/djson.html)
 
+## Using djson with an AI agent
+
+djson is rare in the training data of the models: a model left to guess mixes in the API of
+`std.json` or of other libraries. Give it the reference instead:
+
+* [SKILL.md](https://trikko.github.io/djson/SKILL.md): the rules that are easiest to get
+  wrong, as a skill. [AGENTS.md](https://trikko.github.io/djson/AGENTS.md) is the same text
+  without the front matter, for tools that want a rules file (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`, ...).
+* [llms-full.txt](https://trikko.github.io/djson/llms-full.txt): the whole API;
+  [llms.txt](https://trikko.github.io/djson/llms.txt): a short overview.
+
+The easiest way: ask your agent to do it.
+
+> Install the skill at https://trikko.github.io/djson/SKILL.md. It is the reference for
+> djson, the D JSON library I am using.
+
+Or by hand: a skill is a folder with `SKILL.md` in it (`llms-full.txt` next to it saves a download).
+
+| Tool | For all projects | For one project |
+|---|---|---|
+| Claude Code | `~/.claude/skills/djson/` | `.claude/skills/djson/` |
+| Antigravity (IDE, 2.0) | `~/.gemini/config/skills/djson/` | `.agents/skills/djson/` |
+| Antigravity CLI | `~/.gemini/antigravity-cli/skills/djson/` | `.agents/skills/djson/` |
+| Gemini CLI | `~/.gemini/skills/djson/` | `.gemini/skills/djson/` |
+| Codex | `~/.agents/skills/djson/` | `.agents/skills/djson/` |
+
+For example, for Claude Code:
+
+```sh
+mkdir -p ~/.claude/skills/djson && cd ~/.claude/skills/djson
+curl -fsSLO https://trikko.github.io/djson/SKILL.md
+curl -fsSLO https://trikko.github.io/djson/llms-full.txt
+```
+
+The skill is loaded when the task is about djson or JSON in D; in Claude Code you can also
+call it with `/djson`.
+
 ## Installation
 
 ```
@@ -320,6 +357,10 @@ auto json = djson.parseJSON(`{"key": "value"}`);
 JSONValue stdVal = json.toStdJSON();
 
 assert(stdVal["key"].str == "value");
+
+// And back: JSONValue objects are unordered, so members are sorted by key
+JValue back = JValue(stdVal);
+json["copy"] = stdVal;                 // JSONValue can be assigned directly
 ```
 
 ### JSON Binding
@@ -400,7 +441,7 @@ assert(cfg.category == "PRODUCTION");
 
 #### Deep Path Binding
 
-`@JSONKey` supports variadic arguments and JSON pointers to bind D fields directly to nested JSON structures. You can also bind entire sub-structs for a more organized data model.
+`@JSON` (and `@JSONOptional`) supports variadic arguments and JSON pointers to bind D fields directly to nested JSON structures. You can also bind entire sub-structs for a more organized data model.
 
 ```d
 @JSON

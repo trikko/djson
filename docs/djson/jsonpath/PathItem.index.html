@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="UTF-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
-		<title>Function JValue.mkUnparsed</title>
+		<title>Variable PathItem.index</title>
 		<link rel="stylesheet" href="../../css/style.min.css"/>
 		<script type="text/javascript" src="../../js/script.min.js"></script>
 	</head>
@@ -29,17 +29,32 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 				<ul class="tree-view">
 					<li>
 						<div class="module ">
+							<a href="../../djson/binding.html">binding</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/builder.html">builder</a>
+						</div>
+					</li>
+					<li>
+						<div class="module selected">
+							<a href="../../djson/jsonpath.html">jsonpath</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
 							<a href="../../djson/parser.html">parser</a>
 						</div>
 					</li>
 					<li>
 						<div class="module ">
-							<a href="../../djson/tests.html">tests</a>
+							<a href="../../djson/value.html">value</a>
 						</div>
 					</li>
 					<li>
-						<div class="module selected">
-							<a href="../../djson/value.html">value</a>
+						<div class="module ">
+							<a href="../../djson/walk.html">walk</a>
 						</div>
 					</li>
 				</ul>
@@ -52,15 +67,24 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 		</nav>
 		<div id="main-contents">
 			<div>
-				<h1>Function JValue.mkUnparsed</h1><p>Internal helper to create a lazy node that will be parsed on demand.
+				<h1>Variable PathItem.index</h1><p>Element index, when the node is inside an array
 </p>
 				<div class="prototype">
 					<code class="lang-d">
 						<div class="single-prototype">
-				<span class="kwd">static </span><a href="../../djson/value/JValue.html"><span class="typ">JValue</span></a> <span class="pln">mkUnparsed</span><span class="pun">(</span>
-				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">s</span>
+				<span class="kwd">struct</span> <a href="../../djson/jsonpath/PathItem.html"><span class="typ">PathItem</span></a>
 				<br/>
-				<span class="pun">)</span><span class="pln"> </span><span class="kwd">pure @trusted</span><span class="pun">;</span>
+				<span class="pun">
+					{
+					<br/>
+				</span>
+				&nbsp;&nbsp;<span class="com">// ...</span>
+				<br/>
+				&nbsp;&nbsp;<span class="typ">ulong</span> <span class="pln">index</span><span class="pun">;</span>
+				<br/>
+				&nbsp;&nbsp;<span class="com">// ...</span>
+				<br/>
+				<span class="pun">}</span>
 						</div>
 					</code>
 				</div>

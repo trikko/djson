@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
+		<title>Module djson.binding</title>
+		<link rel="stylesheet" href="../css/style.min.css"/>
+		<script type="text/javascript" src="../js/script.min.js"></script>
+	</head>
+	<body onload="setupDdox();">
+		<header></header>
+		<nav id="main-nav">
+			<div>
+				<noscript>
+					<p style="color: red">The search functionality needs JavaScript enabled</p>
+				</noscript>
+				<div id="symbolSearchPane" style="display: none">
+					<form action="#" method="GET">
+						<input id="symbolSearch" type="text" name="q" placeholder="Search for symbols" autocomplete="off" onchange="performSymbolSearch(24);" onkeypress="this.onchange();" onpaste="this.onchange();" oninput="this.onchange();" autofocus/>
+					</form>
+					<ul id="symbolSearchResults" class="symbolList" style="display: none"></ul><script type="application/javascript" src="../symbols.js"></script><script type="application/javascript">var symbolSearchRootDir = "../";
+document.getElementById('symbolSearchPane').style.display = 'block';</script>
+				</div>
+				<ul class="tree-view">
+					<li class="tree-view ">
+						<div class="package ">
+							<a href="../djson.html">djson</a>
+						</div>
+				<ul class="tree-view">
+					<li>
+						<div class="module selected">
+							<a href="../djson/binding.html">binding</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../djson/builder.html">builder</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../djson/jsonpath.html">jsonpath</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../djson/parser.html">parser</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../djson/value.html">value</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../djson/walk.html">walk</a>
+						</div>
+					</li>
+				</ul>
+					</li>
+				</ul>
+			</div>
+			<p id="main-nav-footer">
+				Built with<a href="https://github.com/MartinNowak/scod">scod</a>
+			</p>
+		</nav>
+		<div id="main-contents">
+			<div>
+				<h1>Module djson.binding</h1><p>Binding system for djson.
+     Provides UDAs and methods to convert between D types and JValue.
+</p><section></section>
+				<section>
+					<h2>Functions</h2>
+					<table>
+						<col class="caption"/>
+						<tr>
+							<th>Name</th><th>Description</th>
+						</tr>
+						<tr>
+							<td>
+								<code>
+									<a id="fromJSON" class="public" href="../djson/binding/fromJSON.html">fromJSON</a><span class="tableEntryAnnotation">(v)</span>
+								</code>
+							</td>
+							<td>Convert a JValue to a D type T.
+     Throws JSONException if a required field is missing or types mismatch.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<code>
+									<a id="toJSON" class="public" href="../djson/binding/toJSON.html">toJSON</a><span class="tableEntryAnnotation">(value)</span>
+								</code>
+							</td>
+							<td>Convert a D type T to a JValue.
+</td>
+						</tr>
+					</table>
+				</section>
+				<section>
+					<h2>Structs</h2>
+					<table>
+						<col class="caption"/>
+						<tr>
+							<th>Name</th><th>Description</th>
+						</tr>
+						<tr>
+							<td>
+								<code>
+									<a id="JSONPostProcess" class="public" href="../djson/binding/JSONPostProcess.html">JSONPostProcess</a>
+								</code>
+							</td>
+							<td>UDA to apply a postprocessing function during toJSON.
+     The function signature must be <code class="lang-d"><span class="typ">JValue </span><span class="pln">func</span><span class="pun">(</span><span class="typ">FieldType </span><span class="pln">v</span><span class="pun">)</span></code>.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<code>
+									<a id="JSONPreProcess" class="public" href="../djson/binding/JSONPreProcess.html">JSONPreProcess</a>
+								</code>
+							</td>
+							<td>UDA to apply a preprocessing function during fromJSON.
+     The function signature must be <code class="lang-d"><span class="typ">FieldType </span><span class="pln">func</span><span class="pun">(</span><span class="typ">JValue </span><span class="pln">v</span><span class="pun">)</span></code>.
+</td>
+						</tr>
+					</table>
+				</section>
+				<section>
+					<h2>Enums</h2>
+					<table>
+						<col class="caption"/>
+						<tr>
+							<th>Name</th><th>Description</th>
+						</tr>
+						<tr>
+							<td>
+								<code>
+									<a id="JSONIgnore" class="public" href="../djson/binding/JSONIgnore.html">JSONIgnore</a>
+								</code>
+							</td>
+							<td>UDA to explicitly ignore a field from JSON binding.
+     Useful when the parent struct is marked with @JSON.
+</td>
+						</tr>
+					</table>
+				</section>
+				<section>
+					<h2>Aliases</h2>
+					<table>
+						<col class="caption"/>
+						<tr>
+							<th>Name</th><th>Type</th><th>Description</th>
+						</tr>
+						<tr>
+							<td>
+								<a id="JSON" class="public" href="../djson/binding/JSON.html">
+									<code>JSON</code>
+								</a>
+							</td>
+							<td>
+								<code class="prettyprint lang-d"><span class="pln">djson<wbr/></span><span class="pun">.</span><span class="pln">binding<wbr/></span><span class="pun">.</span><span class="typ">JSONImpl</span>!(false)</code>
+							</td>
+							<td>UDA to mark a field for JSON binding and/or specify a custom path.
+     Can be applied to:
+       - A struct/class: all public fields are included.
+       - A field: that field is included.
+       - A field with path: <code class="lang-d"><span class="pun">@</span><span class="pln">JSON</span><span class="pun">(</span><span class="str">"flat_key"</span><span class="pun">)</span></code>, <code class="lang-d"><span class="pun">@</span><span class="pln">JSON</span><span class="pun">(</span><span class="str">"/ptr/path"</span><span class="pun">)</span></code>, or <code class="lang-d"><span class="pun">@</span><span class="pln">JSON</span><span class="pun">(</span><span class="str">"variadic"</span><span class="pun">, </span><span class="lit">1</span><span class="pun">, </span><span class="str">"key"</span><span class="pun">)</span></code>.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a id="JSONOptional" class="public" href="../djson/binding/JSONOptional.html">
+									<code>JSONOptional</code>
+								</a>
+							</td>
+							<td>
+								<code class="prettyprint lang-d"><span class="pln">djson<wbr/></span><span class="pun">.</span><span class="pln">binding<wbr/></span><span class="pun">.</span><span class="typ">JSONImpl</span>!(true)</code>
+							</td>
+							<td>UDA to mark a field as optional.
+     If missing in JSON, the field will retain its <code class="lang-d"><span class="pln">init</span></code> value.
+     Supports the same path mapping as <code class="lang-d"><span class="pun">@<a href="../djson/binding/JSON.html"></span><span class="pln">JSON</span></a></code>.
+</td>
+						</tr>
+					</table>
+				</section>
+			</div>
+			<footer>
+				<div id="license-info">
+					
+				</div>
+			</footer>
+		</div>
+	</body>
+</html>

@@ -28,18 +28,33 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 						</div>
 				<ul class="tree-view">
 					<li>
+						<div class="module ">
+							<a href="../djson/binding.html">binding</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../djson/builder.html">builder</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../djson/jsonpath.html">jsonpath</a>
+						</div>
+					</li>
+					<li>
 						<div class="module selected">
 							<a href="../djson/parser.html">parser</a>
 						</div>
 					</li>
 					<li>
 						<div class="module ">
-							<a href="../djson/tests.html">tests</a>
+							<a href="../djson/value.html">value</a>
 						</div>
 					</li>
 					<li>
 						<div class="module ">
-							<a href="../djson/value.html">value</a>
+							<a href="../djson/walk.html">walk</a>
 						</div>
 					</li>
 				</ul>
@@ -82,24 +97,24 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
      Returns a completely parsed JValue in a single pass — faster than parseJSON + parseAll().
 </td>
 						</tr>
+					</table>
+				</section>
+				<section>
+					<h2>Manifest constants</h2>
+					<table>
+						<col class="caption"/>
 						<tr>
-							<td>
-								<code>
-									<a id="skipValue" class="public" href="../djson/parser/skipValue.html">skipValue</a><span class="tableEntryAnnotation">(s)</span>
-								</code>
-							</td>
-							<td>Skips the current JSON value and updates <code class="lang-d"><a href="../djson/parser/skipValue.html#s"><span class="pln">s</span></a></code> to point after it.
-     It works iteratively by maintaining depth.
-</td>
+							<th>Name</th><th>Type</th><th>Description</th>
 						</tr>
 						<tr>
 							<td>
-								<code>
-									<a id="stripJSONWhitespace" class="public" href="../djson/parser/stripJSONWhitespace.html">stripJSONWhitespace</a><span class="tableEntryAnnotation">(s)</span>
-								</code>
+								<a id="maxNestingDepth" class="public" href="../djson/parser/maxNestingDepth.html">
+									<code>maxNestingDepth</code>
+								</a>
 							</td>
-							<td>Helper function to strip leading JSON-standard whitespace.
-    Whitespace includes space, tab, newline, and carriage return.
+							<td>
+							</td>
+							<td>Maximum nesting depth accepted by the eager parser (guards against stack overflow).
 </td>
 						</tr>
 					</table>

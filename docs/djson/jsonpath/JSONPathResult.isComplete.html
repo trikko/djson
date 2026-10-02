@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="UTF-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
-		<title>Variable JArray.unparsedData</title>
+		<title>Function JSONPathResult.isComplete</title>
 		<link rel="stylesheet" href="../../css/style.min.css"/>
 		<script type="text/javascript" src="../../js/script.min.js"></script>
 	</head>
@@ -29,17 +29,32 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 				<ul class="tree-view">
 					<li>
 						<div class="module ">
+							<a href="../../djson/binding.html">binding</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/builder.html">builder</a>
+						</div>
+					</li>
+					<li>
+						<div class="module selected">
+							<a href="../../djson/jsonpath.html">jsonpath</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
 							<a href="../../djson/parser.html">parser</a>
 						</div>
 					</li>
 					<li>
 						<div class="module ">
-							<a href="../../djson/tests.html">tests</a>
+							<a href="../../djson/value.html">value</a>
 						</div>
 					</li>
 					<li>
-						<div class="module selected">
-							<a href="../../djson/value.html">value</a>
+						<div class="module ">
+							<a href="../../djson/walk.html">walk</a>
 						</div>
 					</li>
 				</ul>
@@ -52,24 +67,13 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 		</nav>
 		<div id="main-contents">
 			<div>
-				<h1>Variable JArray.unparsedData</h1><p>Remaining unparsed string data (lazy)
+				<h1>Function JSONPathResult.isComplete</h1><p>False if the document is truncated where the query needed data (see <code class="lang-d"><span class="typ">JValue<wbr/></span><span class="pun">.</span><span class="pln">appendData</span></code>):
+         more nodes may match once the rest arrives. Nodes whose value is itself truncated are
+         included; reading them throws <code class="lang-d"><span class="typ">JSONPartialException</span></code>, like <code class="lang-d"><span class="pln">get</span></code>.
 </p>
 				<div class="prototype">
 					<code class="lang-d">
-						<div class="single-prototype">
-				<span class="kwd">struct</span> <a href="../../djson/value/JArray.html"><span class="typ">JArray</span></a>
-				<br/>
-				<span class="pun">
-					{
-					<br/>
-				</span>
-				&nbsp;&nbsp;<span class="com">// ...</span>
-				<br/>
-				&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">unparsedData</span><span class="pun">;</span>
-				<br/>
-				&nbsp;&nbsp;<span class="com">// ...</span>
-				<br/>
-				<span class="pun">}</span>
+						<div class="single-prototype"><span class="typ">bool</span> <span class="pln">isComplete</span><span class="pun">(</span><span class="pun">)</span><span class="pln"> </span><span class="kwd">pure nothrow @property @nogc @safe const</span><span class="pun">;</span>
 						</div>
 					</code>
 				</div>

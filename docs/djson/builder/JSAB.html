@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="UTF-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
-		<title>Variable JValue.unparsed</title>
+		<title>Function JSAB</title>
 		<link rel="stylesheet" href="../../css/style.min.css"/>
 		<script type="text/javascript" src="../../js/script.min.js"></script>
 	</head>
@@ -29,17 +29,32 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 				<ul class="tree-view">
 					<li>
 						<div class="module ">
+							<a href="../../djson/binding.html">binding</a>
+						</div>
+					</li>
+					<li>
+						<div class="module selected">
+							<a href="../../djson/builder.html">builder</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/jsonpath.html">jsonpath</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
 							<a href="../../djson/parser.html">parser</a>
 						</div>
 					</li>
 					<li>
 						<div class="module ">
-							<a href="../../djson/tests.html">tests</a>
+							<a href="../../djson/value.html">value</a>
 						</div>
 					</li>
 					<li>
-						<div class="module selected">
-							<a href="../../djson/value.html">value</a>
+						<div class="module ">
+							<a href="../../djson/walk.html">walk</a>
 						</div>
 					</li>
 				</ul>
@@ -52,28 +67,23 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 		</nav>
 		<div id="main-contents">
 			<div>
-				<h1>Variable JValue.unparsed</h1><p>Raw JSON string if type is JType.Unparsed
+				<h1>Function JSAB</h1><p>Builds a JSON array from a sequence of values.
 </p>
 				<div class="prototype">
 					<code class="lang-d">
 						<div class="single-prototype">
-				<span class="kwd">struct</span> <a href="../../djson/value/JValue.html"><span class="typ">JValue</span></a>
+				<a href="../../djson/value/JValue.html"><span class="typ">JValue</span></a> <span class="pln">JSAB</span>(T...)<span class="pun">(</span>
+				<br/>&nbsp;&nbsp;<span class="pln">T</span> <span class="pln">vals</span>
 				<br/>
-				<span class="pun">
-					{
-					<br/>
-				</span>
-				&nbsp;&nbsp;<span class="com">// ...</span>
-				<br/>
-				&nbsp;&nbsp;<span class="pln">djson<wbr/></span><span class="pun">.</span><span class="pln">value<wbr/></span><span class="pun">.</span><span class="typ">JValue<wbr/></span><span class="pun">.</span><span class="typ">UnparsedData</span> <span class="pln">unparsed</span><span class="pun">;</span>
-				<br/>
-				&nbsp;&nbsp;<span class="com">// ...</span>
-				<br/>
-				<span class="pun">}</span>
+				<span class="pun">)</span><span class="pun">;</span>
 						</div>
 					</code>
 				</div>
-				
+				<section><h2>Example</h2>
+<p><code class="lang-d"><span class="kwd">auto </span><span class="pln">arr </span><span class="pun">= </span><span class="pln">JSAB</span><span class="pun">(</span><span class="lit">1</span><span class="pun">, </span><span class="lit">2</span><span class="pun">, </span><span class="str">"three"</span><span class="pun">, <a href="../../djson/builder/JSOB.html"></span><span class="pln">JSOB</span></a><span class="pun">(</span><span class="str">"key"</span><span class="pun">, </span><span class="str">"val"</span><span class="pun">));</span></code>
+</p>
+</section>
+
 			</div>
 			<footer>
 				<div id="license-info">

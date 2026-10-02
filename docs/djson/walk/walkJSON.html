@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
+		<title>Function walkJSON</title>
+		<link rel="stylesheet" href="../../css/style.min.css"/>
+		<script type="text/javascript" src="../../js/script.min.js"></script>
+	</head>
+	<body onload="setupDdox();">
+		<header></header>
+		<nav id="main-nav">
+			<div>
+				<noscript>
+					<p style="color: red">The search functionality needs JavaScript enabled</p>
+				</noscript>
+				<div id="symbolSearchPane" style="display: none">
+					<form action="#" method="GET">
+						<input id="symbolSearch" type="text" name="q" placeholder="Search for symbols" autocomplete="off" onchange="performSymbolSearch(24);" onkeypress="this.onchange();" onpaste="this.onchange();" oninput="this.onchange();" autofocus/>
+					</form>
+					<ul id="symbolSearchResults" class="symbolList" style="display: none"></ul><script type="application/javascript" src="../../symbols.js"></script><script type="application/javascript">var symbolSearchRootDir = "../../";
+document.getElementById('symbolSearchPane').style.display = 'block';</script>
+				</div>
+				<ul class="tree-view">
+					<li class="tree-view ">
+						<div class="package ">
+							<a href="../../djson.html">djson</a>
+						</div>
+				<ul class="tree-view">
+					<li>
+						<div class="module ">
+							<a href="../../djson/binding.html">binding</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/builder.html">builder</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/jsonpath.html">jsonpath</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/parser.html">parser</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/value.html">value</a>
+						</div>
+					</li>
+					<li>
+						<div class="module selected">
+							<a href="../../djson/walk.html">walk</a>
+						</div>
+					</li>
+				</ul>
+					</li>
+				</ul>
+			</div>
+			<p id="main-nav-footer">
+				Built with<a href="https://github.com/MartinNowak/scod">scod</a>
+			</p>
+		</nav>
+		<div id="main-contents">
+			<div>
+				<h1>Function walkJSON</h1><p>Walks <code class="lang-d"><a href="../../djson/walk/walkJSON.html#text"><span class="pln">text</span></a></code> once, calling each callback for the nodes selected by its JSONPath.
+</p>
+				<div class="prototype">
+					<code class="lang-d">
+						<div class="single-prototype">
+				<span class="typ">void</span> <span class="pln">walkJSON</span>(Handlers...)<span class="pun">(</span>
+				<br/>&nbsp;&nbsp;<span class="typ">string</span> <span class="pln">text</span>
+				<br/>
+				<span class="pun">)</span><span class="pun">;</span>
+						</div>
+					</code>
+				</div>
+				<section><p><code class="lang-d"><span class="typ">Handlers</span></code> alternates expressions and callbacks:
+     <code class="lang-d"><span class="pln">walkJSON</span><span class="pun">!(</span><span class="str">"$.a"</span><span class="pun">, </span><span class="pln">cb1</span><span class="pun">, </span><span class="str">"$.b[*]"</span><span class="pun">, </span><span class="pln">cb2</span><span class="pun">, </span><span class="str">"/c/0"</span><span class="pun">, </span><span class="pln">cb3</span><span class="pun">)(<a href="../../djson/walk/walkJSON.html#text"></span><span class="pln">text</span></a><span class="pun">)</span></code>. An expression is
+     a JSONPath (starting with <code class="lang-d"><span class="pun">$</span></code>) or a JSON Pointer (starting with <code class="lang-d"><span class="pun">/</span></code>).
+</p>
+
+<p>     A callback takes the node value and, optionally, its path:
+     <code class="lang-d"><span class="pun">(</span><span class="pln">T value</span><span class="pun">)</span></code> or <code class="lang-d"><span class="pun">(</span><span class="pln">T value</span><span class="pun">, </span><span class="kwd">const</span><span class="pun">(</span><span class="typ">PathItem</span><span class="pun">)[] </span><span class="pln">path</span><span class="pun">)</span></code>. <code class="lang-d"><span class="pln">T</span></code> selects the
+     conversion, exactly like <code class="lang-d"><span class="typ">JValue<wbr/></span><span class="pun">.</span><span class="pln">get</span><span class="pun">!</span><span class="pln">T</span></code> (<code class="lang-d"><span class="typ">double</span></code>, <code class="lang-d"><span class="typ">long</span></code>, <code class="lang-d"><span class="typ">string</span></code>,
+     <code class="lang-d"><span class="typ">bool</span></code>, <code class="lang-d"><span class="typ">JValue</span></code>, ...); untyped lambdas receive a <code class="lang-d"><span class="typ">JValue</span></code>. Objects and
+     arrays are passed as lazy <code class="lang-d"><span class="typ">JValue</span></code>s over the original text. A callback
+     may return <code class="lang-d"><a href="../../djson/walk/WalkControl.html#stop"><span class="typ">WalkControl<wbr/></span><span class="pun">.</span><span class="pln">stop</span></a></code> to end the traversal.
+</p>
+
+<p>     When several expressions select the same node, their callbacks run in
+     declaration order. A selected object or array is reported after the
+     callbacks for its own descendants.
+</p>
+
+<p>     As with lazy parsing, subtrees that no expression can reach are only
+     skipped, so malformed content inside them is not reported.
+</p>
+</section>
+<section><h2>Throws</h2>
+<p><code class="lang-d"><span class="typ">JSONSyntaxException</span></code> on invalid JSON, <code class="lang-d"><span class="typ">JSONPartialException</span></code> on
+     truncated input, <code class="lang-d"><span class="typ">JSONException</span></code> if a value cannot be converted to the
+     callback parameter type.
+</p>
+</section>
+
+			</div>
+			<footer>
+				<div id="license-info">
+					
+				</div>
+			</footer>
+		</div>
+	</body>
+</html>

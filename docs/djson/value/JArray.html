@@ -29,17 +29,32 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 				<ul class="tree-view">
 					<li>
 						<div class="module ">
-							<a href="../../djson/parser.html">parser</a>
+							<a href="../../djson/binding.html">binding</a>
 						</div>
 					</li>
 					<li>
 						<div class="module ">
-							<a href="../../djson/tests.html">tests</a>
+							<a href="../../djson/builder.html">builder</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/jsonpath.html">jsonpath</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/parser.html">parser</a>
 						</div>
 					</li>
 					<li>
 						<div class="module selected">
 							<a href="../../djson/value.html">value</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/walk.html">walk</a>
 						</div>
 					</li>
 				</ul>
@@ -75,20 +90,6 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 							<td class="typecol"><code class="prettyprint lang-d"><a href="../../djson/value/JValue.html"><span class="typ">JValue</span></a><span class="pun">[]</span></code></td><td>Storage for array elements
 </td>
 						</tr>
-						<tr>
-							<td>
-								<a href="../../djson/value/JArray.isFullyParsed.html" class="public"><code>isFullyParsed</code></a>
-							</td>
-							<td class="typecol"><code class="prettyprint lang-d"><span class="typ">bool</span></code></td><td>True if all elements have been evaluated
-</td>
-						</tr>
-						<tr>
-							<td>
-								<a href="../../djson/value/JArray.unparsedData.html" class="public"><code>unparsedData</code></a>
-							</td>
-							<td class="typecol"><code class="prettyprint lang-d"><span class="typ">string</span></code></td><td>Remaining unparsed string data (lazy)
-</td>
-						</tr>
 					</table>
 				</section>
 				<section><h2>Methods</h2>
@@ -105,6 +106,16 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 								<span class="tableEntryAnnotation">()</span>
 							</td>
 							<td>Cast to string (JSON representation) or std.json.JSONValue.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JArray.toString.html" class="public">
+									<code>toString</code>
+								</a>
+								<span class="tableEntryAnnotation">()</span>
+							</td>
+							<td>Enables <code class="lang-d"><span class="pln">std<wbr/></span><span class="pun">.</span><span class="pln">stdio<wbr/></span><span class="pun">.</span><span class="pln">writeln</span></code> and string formatting.
 </td>
 						</tr>
 					</table>

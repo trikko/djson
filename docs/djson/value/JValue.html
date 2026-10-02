@@ -29,17 +29,32 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 				<ul class="tree-view">
 					<li>
 						<div class="module ">
-							<a href="../../djson/parser.html">parser</a>
+							<a href="../../djson/binding.html">binding</a>
 						</div>
 					</li>
 					<li>
 						<div class="module ">
-							<a href="../../djson/tests.html">tests</a>
+							<a href="../../djson/builder.html">builder</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/jsonpath.html">jsonpath</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/parser.html">parser</a>
 						</div>
 					</li>
 					<li>
 						<div class="module selected">
 							<a href="../../djson/value.html">value</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/walk.html">walk</a>
 						</div>
 					</li>
 				</ul>
@@ -149,6 +164,17 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 							<td>Construct a JSON array.
 </td>
 						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.this.html" class="public">
+									<code>this</code>
+								</a>
+								<span class="tableEntryAnnotation">(v)</span>
+							</td>
+							<td>Construct from a <code class="lang-d"><span class="pln">std<wbr/></span><span class="pun">.</span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="typ">JSONValue</span></code>, converting it recursively (the reverse of <code class="lang-d"><a href="../../djson/value/JValue.toStdJSON.html"><span class="pln">toStdJSON</span></a></code>).
+        <code class="lang-d"><span class="typ">JSONValue</span></code> objects are unordered, so their members are sorted by key.
+</td>
+						</tr>
 					</table>
 				</section>
 				<section><h2>Fields</h2>
@@ -199,13 +225,6 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 							<td class="typecol"><code class="prettyprint lang-d"><a href="../../djson/value/JType.html"><span class="typ">JType</span></a></code></td><td>Current type of the node
 </td>
 						</tr>
-						<tr>
-							<td>
-								<a href="../../djson/value/JValue.unparsed.html" class="public"><code>unparsed</code></a>
-							</td>
-							<td class="typecol"><code class="prettyprint lang-d"><span class="pln">djson<wbr/></span><span class="pun">.</span><span class="pln">value<wbr/></span><span class="pun">.</span><span class="typ">JValue<wbr/></span><span class="pun">.</span><span class="typ">UnparsedData</span></code></td><td>Raw JSON string if type is JType.Unparsed
-</td>
-						</tr>
 					</table>
 				</section>
 				<section><h2>Properties</h2>
@@ -216,9 +235,44 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 						</tr>
 						<tr>
 							<td>
+								<a href="../../djson/value/JValue.isArray.html" class="public property"><code>isArray</code></a><span class="tableEntryAnnotation">[get]</span>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><span class="typ">bool</span></code></td><td>Returns true if this value represents JSON array.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.isBool.html" class="public property"><code>isBool</code></a><span class="tableEntryAnnotation">[get]</span>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><span class="typ">bool</span></code></td><td>Returns true if this value represents JSON bool.
+</td>
+						</tr>
+						<tr>
+							<td>
 								<a href="../../djson/value/JValue.isNull.html" class="public property"><code>isNull</code></a><span class="tableEntryAnnotation">[get]</span>
 							</td>
 							<td class="typecol"><code class="prettyprint lang-d"><span class="typ">bool</span></code></td><td>Returns true if this value represents JSON null.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.isNumber.html" class="public property"><code>isNumber</code></a><span class="tableEntryAnnotation">[get]</span>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><span class="typ">bool</span></code></td><td>Returns true if this value represents JSON number.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.isObject.html" class="public property"><code>isObject</code></a><span class="tableEntryAnnotation">[get]</span>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><span class="typ">bool</span></code></td><td>Returns true if this value represents JSON object.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.isString.html" class="public property"><code>isString</code></a><span class="tableEntryAnnotation">[get]</span>
+							</td>
+							<td class="typecol"><code class="prettyprint lang-d"><span class="typ">bool</span></code></td><td>Returns true if this value represents JSON string.
 </td>
 						</tr>
 						<tr>
@@ -239,6 +293,17 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 						</tr>
 						<tr>
 							<td>
+								<a href="../../djson/value/JValue.append.html" class="public">
+									<code>append</code>
+								</a>
+								<span class="tableEntryAnnotation">(value, args)</span>
+							</td>
+							<td>Appends a value to a nested path using variadic keys/indices or a JSON pointer.
+         Automatically creates intermediate structures and promotes non-array target nodes.
+</td>
+						</tr>
+						<tr>
+							<td>
 								<a href="../../djson/value/JValue.appendData.html" class="public">
 									<code>appendData</code>
 								</a>
@@ -247,16 +312,6 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 							<td>Appends additional JSON data to handle partial stream parsing.
          This safely allows resuming parsing by updating all unresolved
          lazy portions of the JSON tree with the provided string.
-</td>
-						</tr>
-						<tr>
-							<td>
-								<a href="../../djson/value/JValue.evaluateSelf.html" class="public">
-									<code>evaluateSelf</code>
-								</a>
-								<span class="tableEntryAnnotation">()</span>
-							</td>
-							<td>Evaluates current node if it is currently in Unparsed (lazy) state.
 </td>
 						</tr>
 						<tr>
@@ -309,16 +364,6 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 								<span class="tableEntryAnnotation">(args)</span>
 							</td>
 							<td>Check if a specific key, index, or nested path exists.
-</td>
-						</tr>
-						<tr>
-							<td>
-								<a href="../../djson/value/JValue.mkUnparsed.html" class="public">
-									<code>mkUnparsed</code>
-								</a>
-								<span class="tableEntryAnnotation">(s)</span>
-							</td>
-							<td>Internal helper to create a lazy node that will be parsed on demand.
 </td>
 						</tr>
 						<tr>
@@ -397,6 +442,19 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 						</tr>
 						<tr>
 							<td>
+								<a href="../../djson/value/JValue.opOpAssign.html" class="public">
+									<code>opOpAssign</code>
+								</a>
+								<span class="tableEntryAnnotation">(value)</span>
+							</td>
+							<td>Appends a value to a JSON array.
+         If the node is Null, it becomes an Array with the value.
+         If the node is already an Array, the value is added to it.
+         If the node is a primitive or object, it is promoted to an Array containing [oldValue, newValue].
+</td>
+						</tr>
+						<tr>
+							<td>
 								<a href="../../djson/value/JValue.parseAll.html" class="public">
 									<code>parseAll</code>
 								</a>
@@ -442,6 +500,17 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 						</tr>
 						<tr>
 							<td>
+								<a href="../../djson/value/JValue.select.html" class="public">
+									<code>select</code>
+								</a>
+								<span class="tableEntryAnnotation">(path)</span>
+							</td>
+							<td>Selects the nodes matching a JSONPath expression (RFC 9535), or a JSON Pointer.
+         Only the parts of the document needed by the query are parsed.
+</td>
+						</tr>
+						<tr>
+							<td>
 								<a href="../../djson/value/JValue.set.html" class="public">
 									<code>set</code>
 								</a>
@@ -469,6 +538,27 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 								<span class="tableEntryAnnotation">()</span>
 							</td>
 							<td>Converts this <code class="lang-d"><a href="../../djson/value/JValue.html"><span class="typ">JValue</span></a></code> structure into a standard <code class="lang-d"><span class="pln">std<wbr/></span><span class="pun">.</span><span class="pln">json<wbr/></span><span class="pun">.</span><span class="typ">JSONValue</span></code>.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.toString.html" class="public">
+									<code>toString</code>
+								</a>
+								<span class="tableEntryAnnotation">()</span>
+							</td>
+							<td>Enables <code class="lang-d"><span class="pln">std<wbr/></span><span class="pun">.</span><span class="pln">stdio<wbr/></span><span class="pun">.</span><span class="pln">writeln</span></code> and string formatting.
+</td>
+						</tr>
+						<tr>
+							<td>
+								<a href="../../djson/value/JValue.trailingData.html" class="public">
+									<code>trailingData</code>
+								</a>
+								<span class="tableEntryAnnotation">()</span>
+							</td>
+							<td>Returns the non-whitespace data following the end of the document (empty if none).
+         Call it on the root value. Throws JSONPartialException if the document is not complete yet.
 </td>
 						</tr>
 					</table>

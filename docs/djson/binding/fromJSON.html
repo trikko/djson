@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="UTF-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0"/>
-		<title>Variable JArray.isFullyParsed</title>
+		<title>Function fromJSON</title>
 		<link rel="stylesheet" href="../../css/style.min.css"/>
 		<script type="text/javascript" src="../../js/script.min.js"></script>
 	</head>
@@ -28,18 +28,33 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 						</div>
 				<ul class="tree-view">
 					<li>
+						<div class="module selected">
+							<a href="../../djson/binding.html">binding</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/builder.html">builder</a>
+						</div>
+					</li>
+					<li>
+						<div class="module ">
+							<a href="../../djson/jsonpath.html">jsonpath</a>
+						</div>
+					</li>
+					<li>
 						<div class="module ">
 							<a href="../../djson/parser.html">parser</a>
 						</div>
 					</li>
 					<li>
 						<div class="module ">
-							<a href="../../djson/tests.html">tests</a>
+							<a href="../../djson/value.html">value</a>
 						</div>
 					</li>
 					<li>
-						<div class="module selected">
-							<a href="../../djson/value.html">value</a>
+						<div class="module ">
+							<a href="../../djson/walk.html">walk</a>
 						</div>
 					</li>
 				</ul>
@@ -52,24 +67,16 @@ document.getElementById('symbolSearchPane').style.display = 'block';</script>
 		</nav>
 		<div id="main-contents">
 			<div>
-				<h1>Variable JArray.isFullyParsed</h1><p>True if all elements have been evaluated
+				<h1>Function fromJSON</h1><p>Convert a JValue to a D type T.
+     Throws JSONException if a required field is missing or types mismatch.
 </p>
 				<div class="prototype">
 					<code class="lang-d">
 						<div class="single-prototype">
-				<span class="kwd">struct</span> <a href="../../djson/value/JArray.html"><span class="typ">JArray</span></a>
+				<span class="pln">T</span> <span class="pln">fromJSON</span>(T)<span class="pun">(</span>
+				<br/>&nbsp;&nbsp;<a href="../../djson/value/JValue.html"><span class="typ">JValue</span></a> <span class="pln">v</span>
 				<br/>
-				<span class="pun">
-					{
-					<br/>
-				</span>
-				&nbsp;&nbsp;<span class="com">// ...</span>
-				<br/>
-				&nbsp;&nbsp;<span class="typ">bool</span> <span class="pln">isFullyParsed</span><span class="pun">;</span>
-				<br/>
-				&nbsp;&nbsp;<span class="com">// ...</span>
-				<br/>
-				<span class="pun">}</span>
+				<span class="pun">)</span><span class="pun">;</span>
 						</div>
 					</code>
 				</div>
