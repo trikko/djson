@@ -1,3 +1,5 @@
+<img align="left" alt="djson logo" width="100" height="100" src="https://trikko.github.io/djson/logo.svg">
+
 # djson
 
 A lazy JSON parser for the D programming language. Parses only what you access: no wasted work.
